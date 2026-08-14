@@ -1,4 +1,10 @@
 /target
+result*.json
+test*.py
+profile.json.gz
+profile.kernel.etl
+/activate.bat
+/.VSCodeCounter
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -12,7 +18,6 @@ __pycache__/
 .Python
 .venv/
 env/
-bin/
 build/
 develop-eggs/
 dist/

@@ -6,7 +6,52 @@ edition = "2024"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [lib]
 name = "janim_backend"
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+no-egui-desktop = []
+
+# For debugging directly on desktop
+[build-dependencies]
+cfg_aliases = "0.2.2"
+wesl = "0.4.2"
 
 [dependencies]
-pyo3 = "0.29.0"
+pyo3 = { version = "0.29.2", features = ["experimental-inspect", "abi3-py312"] }
+# egui
+eframe = { version = "0.36.0", features = ["wgpu"] }
+egui = "0.36.0"
+egui-system-fonts = "0.36.0"
+egui-chinese-font = "0.2.0"
+# i18n
+rust-i18n = "4.2.1"
+serde_yaml = "0.9.34"
+# macros
+pyresolver = { path = "./macros/pyresolver" }
+pydataclass_new = { path = "./macros/pydataclass_new" }
+# others
+anyhow = "1.0.104"
+image = "0.25.10"
+wesl = "0.4.2"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+egui-desktop = "0.2.5"
+egui_extras = "0.36.0"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = "0.2.126"
+wasm-bindgen-futures = "0.4.76"
+web-sys = { version = "0.3.103", features = ["HtmlCanvasElement", "Window", "Document"] }
+
+[patch.crates-io]
+winit = { git = "https://github.com/jkjkil4/winit.git", branch = "fix-dpi-scaling" }
+egui-system-fonts = { git = "https://github.com/jkjkil4/egui-system-fonts.git", branch = "bump-egui-36" }
+egui-desktop = { git = "https://github.com/jkjkil4/egui-desktop.git", branch = "for-janim-backend" }
+
+[package.metadata.i18n]
+available-locales = ["en", "zh_CN"]
+default-locale = "en"
+
+[profile.profiling]
+inherits = "release"
+debug = true

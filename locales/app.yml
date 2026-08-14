@@ -1,0 +1,58 @@
+_version: 2
+Capture:
+  en: Capture
+  zh_CN: 截取
+Clear Font Cache:
+  en: Clear Font Cache
+  zh_CN: 清空字体缓存
+Color:
+  en: Color
+  zh_CN: 颜色
+Copy time point:
+  en: Copy time point
+  zh_CN: 复制时间点
+Export:
+  en: Export
+  zh_CN: 导出
+File:
+  en: File
+  zh_CN: 文件
+Font list:
+  en: Font list
+  zh_CN: 字体列表
+Frame skip:
+  en: Frame skip
+  zh_CN: 跳帧
+Profiler:
+  en: Profiler
+  zh_CN: 性能分析器
+Rebuild:
+  en: Rebuild
+  zh_CN: 重新构建
+Reset In/Out Point:
+  en: Reset In/Out Point
+  zh_CN: 重置入点/出点
+Rich text editor:
+  en: Rich text editor
+  zh_CN: 富文本编辑器
+Set In Point:
+  en: Set In Point
+  zh_CN: 设置入点
+Set Out Point:
+  en: Set Out Point
+  zh_CN: 设置出点
+Stay on top:
+  en: Stay on top
+  zh_CN: 窗口置前
+Subitem selector:
+  en: Subitem selector
+  zh_CN: 子物件选择器
+Tools:
+  en: Tools
+  zh_CN: 工具
+View:
+  en: View
+  zh_CN: 视图
+Draw:
+  en: Draw
+  zh_CN: 绘制
