@@ -9,4 +9,11 @@ name = "janim_backend"
 crate-type = ["cdylib"]
 
 [dependencies]
-pyo3 = "0.29.0"
+anyhow = "1.0.104"
+pyo3 = { version = "0.29.0", features = ["experimental-inspect"] }
+rust-i18n = "4.2.1"
+serde_yaml = "0.9.34"
+
+[package.metadata.i18n]
+available-locales = ["en", "zh_CN"]
+default-locale = "en"
