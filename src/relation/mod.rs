@@ -30,12 +30,12 @@ pub mod relation {
 /// ```python
 /// class Item:
 ///     def __init__(self):
-///         self._rel_handle = registry.reg_create()
+///         self.__rel_handle = registry.reg_create()
 /// ```
 ///
 /// These situations could break the assumption:
-/// - Replace `_rel_handle` by another value
-/// - Set `_rel_handle` to other variables outside of the related `Item` instance
+/// - Replace `__rel_handle` by another value
+/// - Set `__rel_handle` to other variables outside of the related `Item` instance
 ///
 /// Assumption 2: All iterators (`RelationBitsetIterator` & `RelationVecIterator`) are used immedately,
 /// i.e. their lifetime is short, not stored for longer use.
