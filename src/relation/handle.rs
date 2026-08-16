@@ -33,8 +33,9 @@ impl RelationHandle {
         self.index
     }
 
-    pub(super) fn get_ref<'py>(&self, py: Python<'py>) -> Option<Bound<'py, PyAny>> {
+    pub(super) fn get_ref<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         upgrade_ref(py, &self.related_obj)
+            .ok_or_else(|| LifetimeError::new_err(t!("`RelationHandle` lifetime mismatch")))
     }
 
     pub(super) fn index_and_wref(&self) -> (NodeIndex, &Py<PyWeakrefReference>) {
@@ -45,9 +46,7 @@ impl RelationHandle {
         &self,
         py: Python<'py>,
     ) -> PyResult<(NodeIndex, Bound<'py, PyAny>)> {
-        self.get_ref(py)
-            .map(|x| (self.index, x))
-            .ok_or_else(|| LifetimeError::new_err(t!("`RelationHandle` lifetime mismatch")))
+        Ok((self.index, self.get_ref(py)?))
     }
 }
 

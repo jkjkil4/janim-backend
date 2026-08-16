@@ -330,6 +330,11 @@ fn new_cycle_err() -> PyErr {
     ))
 }
 
+pub(super) enum ResolveResult<'py> {
+    Resolved(Bound<'py, PyAny>),
+    Expired,
+}
+
 pub(super) struct Node {
     /// Used for checking whether a node is alive
     handle_ref: Py<PyWeakrefReference>,
@@ -390,9 +395,14 @@ impl Node {
         self.descendant_dfs.reset();
     }
 
-    pub(super) fn resolve_self<'py>(&self, py: Python<'py>) -> Option<Bound<'py, PyAny>> {
-        let handle: PyRef<RelationHandle> = upgrade_ref(py, &self.handle_ref)?.extract().unwrap();
-        handle.get_ref(py)
+    pub(super) fn resolve_self<'py>(&self, py: Python<'py>) -> PyResult<ResolveResult<'py>> {
+        match upgrade_ref(py, &self.handle_ref) {
+            Some(py_handle) => {
+                let handle: PyRef<RelationHandle> = py_handle.extract().unwrap();
+                Ok(ResolveResult::Resolved(handle.get_ref(py)?))
+            }
+            None => Ok(ResolveResult::Expired),
+        }
     }
 
     pub(super) fn resolve_parents<'py>(&self, py: Python<'py>) -> Vec<Bound<'py, PyAny>> {

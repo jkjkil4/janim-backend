@@ -3,6 +3,7 @@ use std::rc::Rc;
 use pyo3::prelude::*;
 
 use super::bitset::OffsetBitSetIter;
+use super::registry_nodes::ResolveResult;
 use super::{NodeIndex, RelationRegistry};
 
 #[pyclass(module = "janim_backend.relation", unsendable, skip_from_py_object)]
@@ -17,11 +18,22 @@ impl RelationBitsetIterator {
         slf
     }
 
-    fn __next__<'py>(mut slf: PyRefMut<Self>, py: Python<'py>) -> Option<Bound<'py, PyAny>> {
-        let index = slf.iter.next()?;
+    fn __next__<'py>(
+        mut slf: PyRefMut<Self>,
+        py: Python<'py>,
+    ) -> PyResult<Option<Bound<'py, PyAny>>> {
+        // Loop is used for skip Expired objects
+        loop {
+            let Some(index) = slf.iter.next() else {
+                return Ok(None);
+            };
 
-        let registry = slf.registry.bind(py).borrow();
-        registry.node(index).resolve_self(py)
+            let registry = slf.registry.bind(py).borrow();
+            match registry.node(index).resolve_self(py)? {
+                ResolveResult::Resolved(obj) => return Ok(Some(obj)),
+                ResolveResult::Expired => {}
+            }
+        }
     }
 }
 
@@ -48,15 +60,24 @@ impl RelationVecIterator {
         slf
     }
 
-    fn __next__<'py>(mut slf: PyRefMut<Self>, py: Python<'py>) -> Option<Bound<'py, PyAny>> {
-        if slf.current == slf.vec.len() {
-            return None;
+    fn __next__<'py>(
+        mut slf: PyRefMut<Self>,
+        py: Python<'py>,
+    ) -> PyResult<Option<Bound<'py, PyAny>>> {
+        // Loop is used for skip Expired objects
+        loop {
+            if slf.current == slf.vec.len() {
+                return Ok(None);
+            }
+
+            let index = slf.vec[slf.current];
+            slf.current += 1;
+
+            let registry = slf.registry.bind(py).borrow();
+            match registry.node(index).resolve_self(py)? {
+                ResolveResult::Resolved(obj) => return Ok(Some(obj)),
+                ResolveResult::Expired => {}
+            }
         }
-
-        let index = slf.vec[slf.current];
-        slf.current += 1;
-
-        let registry = slf.registry.bind(py).borrow();
-        registry.node(index).resolve_self(py)
     }
 }
