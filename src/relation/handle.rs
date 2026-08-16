@@ -164,11 +164,12 @@ impl RelationHandle {
         ))
     }
 
+    /// Get the count of child objects
     fn len(&self, py: Python<'_>) -> usize {
         self.registry.borrow(py).node(self.index).len()
     }
 
-    /// Check whether a object is in the child objects
+    /// Check whether `obj` is in the child objects
     fn contains(&self, py: Python<'_>, obj: Bound<'_, PyAny>) -> bool {
         self.registry
             .borrow(py)
@@ -177,8 +178,8 @@ impl RelationHandle {
             .any(|x| x.is(&obj))
     }
 
-    /// Get the index
-    fn vec_index_of(&self, py: Python<'_>, obj: Bound<'_, PyAny>) -> PyResult<usize> {
+    /// Get the index of `obj` in the child objects
+    fn index_of(&self, py: Python<'_>, obj: Bound<'_, PyAny>) -> PyResult<usize> {
         self.registry
             .borrow(py)
             .node(self.index)
@@ -191,5 +192,28 @@ impl RelationHandle {
                         .map_or_else(|_| "The object".into(), |v| v.to_string())
                 ))
             })
+    }
+
+    /// Check for whether the flag is set
+    fn has_flag(&self, py: Python<'_>, flag: String) -> bool {
+        self.registry.borrow_mut(py).node_has_flag(self.index, flag)
+    }
+
+    /// Set the flag state
+    fn set_flag(
+        &self,
+        py: Python<'_>,
+        flag: String,
+        state: bool,
+        recurse_up: bool,
+        recurse_down: bool,
+    ) -> PyResult<()> {
+        self.registry.borrow_mut(py).node_set_flag(
+            self.index,
+            flag,
+            state,
+            recurse_up,
+            recurse_down,
+        )
     }
 }

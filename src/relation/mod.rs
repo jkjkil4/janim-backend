@@ -2,14 +2,18 @@ mod bitset;
 mod cache;
 mod handle;
 mod iter;
-mod registry;
+mod registry_flags;
+mod registry_nodes;
 
 type NodeIndex = usize;
 
+use std::collections::HashMap;
+
 use pyo3::prelude::*;
 
+use bitset::OffsetBitSet;
 use handle::RelationHandle;
-use registry::Node;
+use registry_nodes::Node;
 
 #[pymodule]
 pub mod relation {
@@ -43,6 +47,7 @@ pub mod relation {
 struct RelationRegistry {
     offset: usize,
     nodes: Vec<Node>,
+    flags: HashMap<String, OffsetBitSet>,
 }
 
 #[pymethods]
@@ -52,6 +57,7 @@ impl RelationRegistry {
         Self {
             offset: 0,
             nodes: Vec::new(),
+            flags: HashMap::new(),
         }
     }
 
@@ -82,6 +88,10 @@ impl RelationRegistry {
             if node.alive(py) {
                 node.cleanup(py);
             }
+        }
+
+        for set in &mut self.flags.values_mut() {
+            set.cleanup();
         }
 
         let leading = self.nodes.iter().take_while(|node| !node.alive(py)).count();

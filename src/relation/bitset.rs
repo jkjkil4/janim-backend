@@ -8,7 +8,7 @@ use std::rc::Rc;
 ///        | <-------  word  --------> | <-------  word  --------> | ...
 /// (mask) | 1<<0 1<<1 ... 1<<62 1<<63 | 1<<0 1<<1 ... 1<<62 1<<63 | ...
 /// ```
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct OffsetBitSet {
     /// First word index, e.g. `offset = 3` indicates the `id` of the first bit is `3 * 64 = 192`
     offset: usize,
@@ -19,17 +19,14 @@ pub struct OffsetBitSet {
 impl OffsetBitSet {
     /// Creates an empty [`OffsetBitSet`].
     pub fn new() -> Self {
-        Self {
-            offset: 0,
-            bits: Vec::new(),
-        }
+        Self::default()
     }
 
-    /// Returns the word index corresponding to the given bit id.
-    #[inline]
-    fn word_index(&self, id: usize) -> usize {
-        (id >> 6) - self.offset
-    }
+    // Returns the word index corresponding to the given bit id.
+    // #[inline]
+    // fn word_index(&self, id: usize) -> usize {
+    //     (id >> 6) - self.offset
+    // }
 
     /// Returns the bit mask corresponding to the given bit id within its word.
     #[inline]
@@ -152,6 +149,33 @@ impl OffsetBitSet {
 
         self.offset = new_offset;
         self.bits = new_bits;
+    }
+
+    /// Removes all bits from `self` that are also set in `other`.
+    ///
+    /// The resulting bitset contains `self \ other`.
+    pub fn difference_with(&mut self, other: &Self) {
+        if self.bits.is_empty() || other.bits.is_empty() {
+            return;
+        }
+
+        let self_end = self.offset + self.bits.len();
+        let other_end = other.offset + other.bits.len();
+
+        // No overlap between the two ranges.
+        if self_end <= other.offset || other_end <= self.offset {
+            return;
+        }
+
+        let start = self.offset.max(other.offset);
+        let end = self_end.min(other_end);
+
+        let self_offset = start - self.offset;
+        let other_offset = start - other.offset;
+
+        for i in 0..(end - start) {
+            self.bits[self_offset + i] &= !other.bits[other_offset + i];
+        }
     }
 
     /// Returns an iterator over all set bit ids in ascending order.

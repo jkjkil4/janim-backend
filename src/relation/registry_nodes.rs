@@ -3,7 +3,7 @@ use std::rc::Rc;
 use pyo3::prelude::*;
 use pyo3::types::PyWeakrefReference;
 
-use crate::exception::{ReindexError, RelationCycleError};
+use crate::exception::{ReindexError, RelationError};
 use crate::utils::upgrade_ref;
 
 use super::bitset::OffsetBitSet;
@@ -325,7 +325,7 @@ impl RelationRegistry {
 }
 
 fn new_cycle_err() -> PyErr {
-    RelationCycleError::new_err(t!(
+    RelationError::new_err(t!(
         "The relation graph contains a cycle. Consider checking the inclusion relations between groups."
     ))
 }
