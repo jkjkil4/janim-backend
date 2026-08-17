@@ -55,12 +55,14 @@ impl RelationHandle {
     }
 
     /// Used for borrow mutable [RelationRegistry] when modifying children
-    fn registry_mut<'py>(&'py self, py: Python<'py>) -> PyResult<PyRefMut<'py, RelationRegistry>> {
-        self.registry.try_borrow_mut(py).map_err(|_| {
-            BorrowMutError::new_err(t!(
+    fn mut_children<'py>(&'py self, py: Python<'py>) -> PyResult<PyRef<'py, RelationRegistry>> {
+        if self.registry.try_borrow_mut(py).is_err() {
+            Err(BorrowMutError::new_err(t!(
                 "Cannot modify children while a modification is already in progress"
-            ))
-        })
+            )))
+        } else {
+            Ok(self.registry.borrow(py))
+        }
     }
 }
 
@@ -83,7 +85,7 @@ impl RelationHandle {
         new_children: Vec<Bound<'_, RelationHandle>>,
         prepend: bool,
     ) -> PyResult<()> {
-        self.registry_mut(py)?
+        self.mut_children(py)?
             .add_children_to(py, self, new_children, prepend)
     }
 
@@ -94,24 +96,24 @@ impl RelationHandle {
         index: usize,
         children: Vec<Bound<'_, RelationHandle>>,
     ) -> PyResult<()> {
-        self.registry_mut(py)?
+        self.mut_children(py)?
             .insert_children_to(py, self, index, children)
     }
 
     /// Remove child objects
     fn remove(&self, py: Python<'_>, children: Vec<Bound<'_, RelationHandle>>) -> PyResult<()> {
-        self.registry_mut(py)?
+        self.mut_children(py)?
             .remove_children_from(py, self, children)
     }
 
     /// Clear parent objects
     fn clear_parents(&self, py: Python<'_>) -> PyResult<()> {
-        self.registry_mut(py)?.clear_parents_of(py, self)
+        self.mut_children(py)?.clear_parents_of(py, self)
     }
 
     /// Clear child objects
     fn clear_children(&self, py: Python<'_>) -> PyResult<()> {
-        self.registry_mut(py)?.clear_children_of(py, self)
+        self.mut_children(py)?.clear_children_of(py, self)
     }
 
     /// Resolve ancestor objects (unordered)
@@ -158,7 +160,7 @@ impl RelationHandle {
 
     /// Check for whether the flag is set
     fn has_flag(&self, py: Python<'_>, flag: String) -> bool {
-        self.registry.borrow_mut(py).node_has_flag(self.index, flag)
+        self.registry.borrow(py).node_has_flag(self.index, flag)
     }
 
     /// Set the flag state
@@ -170,12 +172,8 @@ impl RelationHandle {
         recurse_up: bool,
         recurse_down: bool,
     ) -> PyResult<()> {
-        self.registry.borrow_mut(py).node_set_flag(
-            self.index,
-            flag,
-            state,
-            recurse_up,
-            recurse_down,
-        )
+        self.registry
+            .borrow(py)
+            .node_set_flag(self.index, flag, state, recurse_up, recurse_down)
     }
 }

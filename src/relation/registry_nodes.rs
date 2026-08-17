@@ -1,3 +1,4 @@
+use std::cell::{Ref, RefCell, RefMut};
 use std::rc::Rc;
 
 use pyo3::prelude::*;
@@ -14,20 +15,21 @@ use super::{NodeIndex, RelationRegistry};
 impl RelationRegistry {
     /// Add child objects
     pub(super) fn add_children_to(
-        &mut self,
+        &self,
         py: Python<'_>,
         root: &RelationHandle,
         new_children: Vec<Bound<'_, RelationHandle>>,
         prepend: bool,
     ) -> PyResult<()> {
+        let mut nodes = self.nodes();
+
         let (index, obj_ref) = root.index_and_ref(py)?;
         let self_children = root.children_ref(py);
 
-        self.children_changed(py, index)?;
         for child in new_children {
             let (child_index, child_obj) = child.borrow().index_and_ref(py)?;
 
-            let node = self.node_mut(index);
+            let mut node = nodes.node_mut(index);
             if node.has_child(child_index) {
                 continue;
             }
@@ -44,8 +46,10 @@ impl RelationRegistry {
                 self_children.append(add_to_children.1).unwrap();
             }
 
+            drop(node);
+
             // Add to Rust index vec & python object list
-            let child_node = self.node_mut(child_index);
+            let mut child_node = nodes.node_mut(child_index);
             child_node.parents.push(add_to_parents.0);
             child_node
                 .unwrap_handle(py)
@@ -53,29 +57,34 @@ impl RelationRegistry {
                 .append(add_to_parents.1)
                 .unwrap();
 
+            drop(child_node);
+
             self.parents_changed(py, child_index)?;
         }
+
+        self.children_changed(py, index)?;
         Ok(())
     }
 
     // Insert child objects
     pub(super) fn insert_children_to(
-        &mut self,
+        &self,
         py: Python<'_>,
         root: &RelationHandle,
         insert_index: usize,
         new_children: Vec<Bound<'_, RelationHandle>>,
     ) -> PyResult<()> {
+        let mut nodes = self.nodes();
+
         let (index, obj_ref) = root.index_and_ref(py)?;
         let self_children = root.children_ref(py);
 
-        let insert_index = insert_index.min(self.node(index).children.len());
+        let insert_index = insert_index.min(nodes.node(index).children.len());
 
-        self.children_changed(py, index)?;
         for (i, child) in new_children.into_iter().enumerate() {
             let (child_index, child_obj) = child.borrow().index_and_ref(py)?;
 
-            let node = self.node_mut(index);
+            let mut node = nodes.node_mut(index);
             if node.has_child(child_index) {
                 continue;
             }
@@ -89,8 +98,10 @@ impl RelationRegistry {
                 .insert(insert_index + i, add_to_children.1)
                 .unwrap();
 
+            drop(node);
+
             // Add to Rust index vec & python object list
-            let child_node = self.node_mut(child_index);
+            let mut child_node = nodes.node_mut(child_index);
             child_node.parents.push(add_to_parents.0);
             child_node
                 .unwrap_handle(py)
@@ -98,14 +109,18 @@ impl RelationRegistry {
                 .append(add_to_parents.1)
                 .unwrap();
 
+            drop(child_node);
+
             self.parents_changed(py, child_index)?;
         }
+
+        self.children_changed(py, index)?;
         Ok(())
     }
 
     // Remove child objects
     pub(super) fn remove_children_from(
-        &mut self,
+        &self,
         py: Python<'_>,
         root: &RelationHandle,
         removed_children: Vec<Bound<'_, RelationHandle>>,
@@ -121,53 +136,57 @@ impl RelationRegistry {
     }
 
     /// Clear parent objects
-    pub(super) fn clear_parents_of(
-        &mut self,
-        py: Python<'_>,
-        root: &RelationHandle,
-    ) -> PyResult<()> {
+    pub(super) fn clear_parents_of(&self, py: Python<'_>, root: &RelationHandle) -> PyResult<()> {
         let index = root.index();
 
-        for parent_index in self.node(index).parents.clone() {
+        for parent_index in self.nodes().node(index).parents.clone() {
             self.remove_by_index(py, parent_index, &vec![index])?;
         }
         Ok(())
     }
 
     /// Clear child objects
-    pub(super) fn clear_children_of(
-        &mut self,
-        py: Python<'_>,
-        root: &RelationHandle,
-    ) -> PyResult<()> {
+    pub(super) fn clear_children_of(&self, py: Python<'_>, root: &RelationHandle) -> PyResult<()> {
         let index = root.index();
 
-        self.remove_by_index(py, index, &self.node(index).children.clone())
+        self.remove_by_index(py, index, &self.nodes().node(index).children.clone())
+    }
+}
+
+/// Used for provide compile-time borrow checker in function scope.
+pub(super) struct NodesBorrower<'a> {
+    nodes: &'a RefCell<Vec<Node>>,
+}
+
+impl<'a> NodesBorrower<'a> {
+    #[inline]
+    pub(super) fn node(&self, index: usize) -> Ref<'_, Node> {
+        Ref::map(self.nodes.borrow(), |nodes| &nodes[index])
+    }
+    #[inline]
+    pub(super) fn node_mut(&mut self, index: usize) -> RefMut<'_, Node> {
+        RefMut::map(self.nodes.borrow_mut(), |nodes| &mut nodes[index])
     }
 }
 
 impl RelationRegistry {
     #[inline]
-    pub(super) fn node(&self, node_index: NodeIndex) -> &Node {
-        &self.nodes[node_index - self.offset]
-    }
-
-    #[inline]
-    pub(super) fn node_mut(&mut self, node_index: NodeIndex) -> &mut Node {
-        &mut self.nodes[node_index - self.offset]
+    pub(super) fn nodes<'a>(&'a self) -> NodesBorrower<'a> {
+        NodesBorrower { nodes: &self.nodes }
     }
 
     fn remove_by_index(
-        &mut self,
+        &self,
         py: Python<'_>,
         index: NodeIndex,
         removed_children: &Vec<NodeIndex>,
     ) -> PyResult<()> {
-        self.children_changed(py, index)?;
-        let self_children = self.node(index).unwrap_handle(py).children_ref(py).clone();
+        let mut nodes = self.nodes();
+
+        let self_children = nodes.node(index).unwrap_handle(py).children_ref(py).clone();
 
         for &child_index in removed_children {
-            let node = self.node_mut(index);
+            let mut node = nodes.node_mut(index);
             if !node.has_child(child_index) {
                 continue;
             }
@@ -179,27 +198,39 @@ impl RelationRegistry {
             node.children.remove(i);
             self_children.del_item(i).unwrap();
 
+            drop(node);
+
             // Remove from Rust index vec & python object list
-            let child_parents = &mut self.node_mut(child_index).parents;
-            let i = child_parents.iter().position(|&x| x == index).unwrap();
-            child_parents.remove(i);
-            self.node(child_index)
+
+            let i = {
+                let child_parents = &mut nodes.node_mut(child_index).parents;
+                child_parents.iter().position(|&x| x == index).unwrap()
+            };
+            let mut child_node = nodes.node_mut(child_index);
+            child_node.parents.remove(i);
+            child_node
                 .unwrap_handle(py)
                 .parents_ref(py)
                 .del_item(i)
                 .unwrap();
 
+            drop(child_node);
+
             self.parents_changed(py, child_index)?;
         }
+
+        self.children_changed(py, index)?;
         Ok(())
     }
 
     fn parents_changed(&self, py: Python<'_>, index: NodeIndex) -> PyResult<()> {
-        let node = self.node(index);
+        let nodes = self.nodes();
+
+        let node = nodes.node(index);
         node.reset_ancestors();
         let descendants = self.descendant_set(index)?;
         for child in descendants.iter() {
-            self.node(child).reset_ancestors();
+            nodes.node(child).reset_ancestors();
         }
         // Call the python callback
         node.resolve_self(py)?
@@ -210,11 +241,13 @@ impl RelationRegistry {
     }
 
     fn children_changed(&self, py: Python<'_>, index: NodeIndex) -> PyResult<()> {
-        let node = self.node(index);
+        let nodes = self.nodes();
+
+        let node = nodes.node(index);
         node.reset_descendants();
         let ancestors = self.ancestor_set(index)?;
         for child in ancestors.iter() {
-            self.node(child).reset_descendants();
+            nodes.node(child).reset_descendants();
         }
         // Call the python callback
         node.resolve_self(py)?
@@ -227,14 +260,16 @@ impl RelationRegistry {
     /// Get the ancestor bitset with cache,
     /// `Err` if the graph has cycle
     pub(super) fn ancestor_set(&self, node_index: NodeIndex) -> PyResult<Rc<OffsetBitSet>> {
-        let node = self.node(node_index);
+        let nodes = self.nodes();
+        let node = nodes.node(node_index);
         self.cached_set(&node.ancestor_set, &node.parents, Self::ancestor_set)
     }
 
     /// Get the descendant bitset with cache,
     /// `Err` if the graph has cycle
     pub(super) fn descendant_set(&self, node_index: NodeIndex) -> PyResult<Rc<OffsetBitSet>> {
-        let node = self.node(node_index);
+        let nodes = self.nodes();
+        let node = nodes.node(node_index);
         self.cached_set(&node.descendant_set, &node.children, Self::descendant_set)
     }
 
@@ -265,14 +300,16 @@ impl RelationRegistry {
     /// Get the ancestor vec with cache,
     /// `Err` if the graph has cycle
     pub(super) fn ancestor_dfs(&self, node_index: NodeIndex) -> PyResult<Rc<Vec<NodeIndex>>> {
-        let node = self.node(node_index);
+        let nodes = self.nodes();
+        let node = nodes.node(node_index);
         self.cached_dfs(&node.ancestor_dfs, &node.parents, Self::ancestor_dfs)
     }
 
     /// Get the descendant vec with cache,
     /// `Err` if the graph has cycle
     pub(super) fn descendant_dfs(&self, node_index: NodeIndex) -> PyResult<Rc<Vec<NodeIndex>>> {
-        let node = self.node(node_index);
+        let nodes = self.nodes();
+        let node = nodes.node(node_index);
         self.cached_dfs(&node.descendant_dfs, &node.children, Self::descendant_dfs)
     }
 

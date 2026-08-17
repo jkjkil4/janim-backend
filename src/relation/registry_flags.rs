@@ -5,22 +5,27 @@ use super::{NodeIndex, RelationRegistry};
 
 impl RelationRegistry {
     /// Check for whether the flag of `index` is set
-    pub(super) fn node_has_flag(&mut self, index: NodeIndex, flag: String) -> bool {
-        self.flags.entry(flag).or_default().contains(index)
+    pub(super) fn node_has_flag(&self, index: NodeIndex, flag: String) -> bool {
+        self.flags
+            .borrow_mut()
+            .entry(flag)
+            .or_default()
+            .contains(index)
     }
 
     /// Set the flag state of `index`
     pub(super) fn node_set_flag(
-        &mut self,
+        &self,
         index: NodeIndex,
         flag: String,
         state: bool,
         recurse_up: bool,
         recurse_down: bool,
     ) -> PyResult<()> {
-        if !recurse_up && !recurse_down {
-            let flag_set = self.flags.entry(flag).or_default();
+        let mut flags = self.flags.borrow_mut();
+        let flag_set = flags.entry(flag).or_default();
 
+        if !recurse_up && !recurse_down {
             if state {
                 flag_set.insert(index);
             } else {
@@ -36,8 +41,6 @@ impl RelationRegistry {
             if recurse_down {
                 rel_set.union_with(self.descendant_set(index)?.as_ref());
             }
-
-            let flag_set = self.flags.entry(flag).or_default();
 
             if state {
                 flag_set.union_with(&rel_set);

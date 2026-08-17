@@ -29,7 +29,7 @@ impl RelationBitsetIterator {
             };
 
             let registry = slf.registry.bind(py).borrow();
-            match registry.node(index).resolve_self(py)? {
+            match registry.nodes().node(index).resolve_self(py)? {
                 ResolveResult::Resolved(obj) => return Ok(Some(obj)),
                 ResolveResult::Expired => {}
             }
@@ -74,7 +74,7 @@ impl RelationVecIterator {
             slf.current += 1;
 
             let registry = slf.registry.bind(py).borrow();
-            match registry.node(index).resolve_self(py)? {
+            match registry.nodes().node(index).resolve_self(py)? {
                 ResolveResult::Resolved(obj) => return Ok(Some(obj)),
                 ResolveResult::Expired => {}
             }
