@@ -5,6 +5,7 @@ use crate::exception::BorrowMutError;
 use crate::{exception::LifetimeError, utils::upgrade_ref};
 
 use super::iter::{RelationBitsetIterator, RelationVecIterator};
+use super::registry_flags::FlagHandle;
 use super::{NodeIndex, RelationRegistry};
 
 #[pyclass(module = "janim_backend.relation", weakref, skip_from_py_object)]
@@ -163,22 +164,54 @@ impl RelationHandle {
         ))
     }
 
-    /// Check for whether the flag is set
-    fn has_flag(&self, py: Python<'_>, flag: String) -> bool {
-        self.registry.borrow(py).node_has_flag(self.index, flag)
-    }
-
-    /// Set the flag state
-    fn set_flag(
+    /// Check for whether the flag of `index` is set
+    pub(super) fn get_computed_for(
         &self,
         py: Python<'_>,
-        flag: String,
-        state: bool,
-        recurse_up: bool,
-        recurse_down: bool,
+        flag_0: usize,
+        flag_handle: Bound<'_, FlagHandle>,
+    ) -> bool {
+        self.registry
+            .borrow(py)
+            .node_get_computed_for(self.index, flag_0, flag_handle)
+    }
+
+    /// Set the computed state to `true`, considering the recursion
+    pub(super) fn mark_computed_for(
+        &self,
+        py: Python<'_>,
+        flag_0: usize,
+        flag_handle: Bound<'_, FlagHandle>,
+    ) {
+        self.registry
+            .borrow(py)
+            .node_mark_computed_for(self.index, flag_0, flag_handle);
+    }
+
+    /// Reset the computed state to `false`, without considering the recursion
+    pub(super) fn reset_computed_for(
+        &self,
+        py: Python<'_>,
+        flag_0: usize,
+        flag_handle: Bound<'_, FlagHandle>,
     ) -> PyResult<()> {
         self.registry
             .borrow(py)
-            .node_set_flag(self.index, flag, state, recurse_up, recurse_down)
+            .node_reset_computed_for(self.index, flag_0, flag_handle.borrow())
+    }
+
+    /// Reset the computed states in the list to `false`, without considering the recursion
+    pub(super) fn reset_computed_for_list(
+        &self,
+        py: Python<'_>,
+        flag_0: usize,
+        handles: Bound<'_, PyList>,
+    ) -> PyResult<()> {
+        let registry = self.registry.borrow(py);
+        for any in handles.iter() {
+            let flag_handle: PyRef<FlagHandle> = any.extract()?;
+            registry.node_reset_computed_for(self.index, flag_0, flag_handle)?;
+        }
+        Ok(())
     }
 }

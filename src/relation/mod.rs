@@ -13,6 +13,7 @@ use pyo3::prelude::*;
 
 use bitset::OffsetBitSet;
 use handle::RelationHandle;
+use registry_flags::FlagHandle;
 use registry_nodes::Node;
 
 #[pymodule]
@@ -23,6 +24,8 @@ pub mod relation {
     use super::handle::RelationHandle;
     #[pymodule_export]
     use super::iter::{RelationBitsetIterator, RelationVecIterator};
+    #[pymodule_export]
+    use super::registry_flags::FlagHandle;
 }
 
 /// Used for create DAG relations between objects
@@ -43,15 +46,17 @@ pub mod relation {
 ///
 /// Assumption 2: All iterators (`RelationBitsetIterator` & `RelationVecIterator`) are used immedately,
 /// i.e. their lifetime is short, not stored for longer use.
+///
+/// Because `RelationRegistry` may be re-entered from python,
+/// so we wrap every member inside `RefCell<>` to provide interior mutability for members,
+/// so that we do not conflict on the borrow checker on `RelationRegistry` self
 #[pyclass(module = "janim_backend.relation", unsendable, skip_from_py_object)]
 struct RelationRegistry {
     offset: usize,
-    /// Because [RelationRegistry] may be re-entered from python,
-    /// so we wrap every member inside `RefCell<>` to provide interior mutability
     nodes: RefCell<Vec<Node>>,
-    /// Because [RelationRegistry] may be re-entered from python,
-    /// so we wrap every member inside `RefCell<>` to provide interior mutability
-    flags: RefCell<HashMap<String, OffsetBitSet>>,
+
+    computed_flags: RefCell<HashMap<(usize, usize), OffsetBitSet>>, // TODO: trim invalid node indices
+    indexize_mapping: RefCell<HashMap<String, usize>>,
 }
 
 #[pymethods]
@@ -61,7 +66,8 @@ impl RelationRegistry {
         Self {
             offset: 0,
             nodes: Default::default(),
-            flags: Default::default(),
+            computed_flags: Default::default(),
+            indexize_mapping: Default::default(),
         }
     }
 
@@ -88,7 +94,7 @@ impl RelationRegistry {
 
     /// Clean the leading invalid-nodes and the bitsets
     fn cleanup(&mut self, py: Python<'_>) {
-        for set in &mut self.flags.borrow_mut().values_mut() {
+        for set in &mut self.computed_flags.borrow_mut().values_mut() {
             set.cleanup();
         }
 
@@ -100,5 +106,29 @@ impl RelationRegistry {
             .count();
         self.nodes.borrow_mut().drain(..leading);
         self.offset += leading;
+    }
+
+    /// Create a `FlagHandle`
+    fn create_flag(
+        &self,
+        py: Python<'_>,
+        key: &str,
+        recurse_up: bool,
+        recurse_down: bool,
+    ) -> PyResult<Py<FlagHandle>> {
+        let flag_handle = FlagHandle::new(self.indexize_key(key), recurse_up, recurse_down);
+        Py::new(py, flag_handle)
+    }
+
+    /// Indexize a `str` to an corresponding `id`
+    fn indexize_key(&self, key: &str) -> usize {
+        let mut mapping = self.indexize_mapping.borrow_mut();
+        match mapping.get(key) {
+            Some(value) => *value,
+            None => {
+                let id = mapping.len();
+                *mapping.entry(key.to_owned()).or_insert(id)
+            }
+        }
     }
 }

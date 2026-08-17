@@ -1,52 +1,89 @@
-use pyo3::PyResult;
+use pyo3::prelude::*;
 
 use super::bitset::OffsetBitSet;
 use super::{NodeIndex, RelationRegistry};
 
+/// Parameter used when calling `RelationRegistry.node_set_flag`
+///
+/// The flag consists two parts,
+/// `flag_0` (i.e. Component key) is provided externally,
+/// `flag_1` (e.i. Component method name) is provided along with this `FlagHandle`.
+#[pyclass(module = "janim_backend.relation", frozen, skip_from_py_object)]
+pub(super) struct FlagHandle {
+    flag_1: usize,
+    recurse_up: bool,
+    recurse_down: bool,
+}
+
+impl FlagHandle {
+    pub(super) fn new(flag_1: usize, recurse_up: bool, recurse_down: bool) -> Self {
+        Self {
+            flag_1,
+            recurse_up,
+            recurse_down,
+        }
+    }
+}
+
 impl RelationRegistry {
     /// Check for whether the flag of `index` is set
-    pub(super) fn node_has_flag(&self, index: NodeIndex, flag: String) -> bool {
-        self.flags
-            .borrow_mut()
-            .entry(flag)
-            .or_default()
-            .contains(index)
-    }
-
-    /// Set the flag state of `index`
-    pub(super) fn node_set_flag(
+    pub(super) fn node_get_computed_for(
         &self,
         index: NodeIndex,
-        flag: String,
-        state: bool,
-        recurse_up: bool,
-        recurse_down: bool,
-    ) -> PyResult<()> {
-        let mut flags = self.flags.borrow_mut();
-        let flag_set = flags.entry(flag).or_default();
+        flag_0: usize,
+        flag_handle: Bound<'_, FlagHandle>,
+    ) -> bool {
+        let flag_handle = flag_handle.borrow();
+        match self
+            .computed_flags
+            .borrow_mut()
+            .get(&(flag_0, flag_handle.flag_1))
+        {
+            Some(set) => set.contains(index),
+            None => false,
+        }
+    }
 
-        if !recurse_up && !recurse_down {
-            if state {
-                flag_set.insert(index);
-            } else {
-                flag_set.take(index);
-            }
+    /// Reset the computed state to `true`, without considering the recursion
+    pub(super) fn node_mark_computed_for(
+        &self,
+        index: NodeIndex,
+        flag_0: usize,
+        flag_handle: Bound<'_, FlagHandle>,
+    ) {
+        let flag_handle = flag_handle.borrow();
+
+        let mut flags = self.computed_flags.borrow_mut();
+        let Some(set) = flags.get_mut(&(flag_0, flag_handle.flag_1)) else {
+            return;
+        };
+        set.insert(index);
+    }
+
+    /// Set the computed state to `false`, considering the recursion
+    pub(super) fn node_reset_computed_for(
+        &self,
+        index: NodeIndex,
+        flag_0: usize,
+        flag_handle: PyRef<FlagHandle>,
+    ) -> PyResult<()> {
+        let mut flags = self.computed_flags.borrow_mut();
+        let flag_set = flags.entry((flag_0, flag_handle.flag_1)).or_default();
+
+        if !flag_handle.recurse_up && !flag_handle.recurse_down {
+            flag_set.take(index);
         } else {
             let mut rel_set = OffsetBitSet::new();
             rel_set.insert(index);
 
-            if recurse_up {
+            if flag_handle.recurse_up {
                 rel_set.union_with(self.ancestor_set(index)?.as_ref());
             }
-            if recurse_down {
+            if flag_handle.recurse_down {
                 rel_set.union_with(self.descendant_set(index)?.as_ref());
             }
 
-            if state {
-                flag_set.union_with(&rel_set);
-            } else {
-                flag_set.difference_with(&rel_set);
-            }
+            flag_set.difference_with(&rel_set);
         }
 
         Ok(())
