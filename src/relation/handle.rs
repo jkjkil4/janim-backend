@@ -106,6 +106,11 @@ impl RelationHandle {
             .remove_children_from(py, self, children)
     }
 
+    /// Manually trigger [RelationRegistry::children_changed]
+    fn emit_children_changed(&self, py: Python<'_>) -> PyResult<()> {
+        self.mut_children(py)?.children_changed(py, self.index)
+    }
+
     /// Clear parent objects
     fn clear_parents(&self, py: Python<'_>) -> PyResult<()> {
         self.mut_children(py)?.clear_parents_of(py, self)

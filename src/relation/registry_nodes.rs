@@ -240,7 +240,7 @@ impl RelationRegistry {
         Ok(())
     }
 
-    fn children_changed(&self, py: Python<'_>, index: NodeIndex) -> PyResult<()> {
+    pub(super) fn children_changed(&self, py: Python<'_>, index: NodeIndex) -> PyResult<()> {
         let nodes = self.nodes();
 
         let node = nodes.node(index);
