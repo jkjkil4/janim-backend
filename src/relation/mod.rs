@@ -72,7 +72,7 @@ impl RelationRegistry {
         let index = slf.borrow().nodes.len();
         let handle = Py::new(
             py,
-            RelationHandle::new(slf.clone().unbind(), index, &related_obj)?,
+            RelationHandle::new(py, slf.clone().unbind(), index, &related_obj)?,
         )?
         .into_bound(py);
 
@@ -84,12 +84,6 @@ impl RelationRegistry {
 
     /// Clean the leading invalid-nodes and the bitsets
     fn cleanup(&mut self, py: Python<'_>) {
-        for node in &mut self.nodes {
-            if node.alive(py) {
-                node.cleanup(py);
-            }
-        }
-
         for set in &mut self.flags.values_mut() {
             set.cleanup();
         }

@@ -1,4 +1,4 @@
-use pyo3::exceptions::PyValueError;
+use pyo3::types::PyList;
 use pyo3::{prelude::*, types::PyWeakrefReference};
 
 use crate::exception::BorrowMutError;
@@ -13,12 +13,18 @@ pub(super) struct RelationHandle {
     registry: Py<RelationRegistry>,
     /// Index in the regsitry
     index: NodeIndex,
+
     /// The object that we must ensure has the same lifetime with
     related_obj: Py<PyWeakrefReference>,
+    /// We must not store strong reference to python objects in the registry, so we put the reference here
+    parents: Py<PyList>,
+    /// We must not store strong reference to python objects in the registry, so we put the reference here
+    children: Py<PyList>,
 }
 
 impl RelationHandle {
     pub(super) fn new(
+        py: Python<'_>,
         registry: Py<RelationRegistry>,
         index: NodeIndex,
         related_obj: &Bound<'_, PyAny>,
@@ -27,6 +33,8 @@ impl RelationHandle {
             registry,
             index,
             related_obj: PyWeakrefReference::new(related_obj)?.unbind(),
+            parents: PyList::empty(py).unbind(),
+            children: PyList::empty(py).unbind(),
         })
     }
 
@@ -34,49 +42,49 @@ impl RelationHandle {
         self.index
     }
 
-    pub(super) fn get_ref<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+    pub(super) fn obj_ref<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         upgrade_ref(py, &self.related_obj)
             .ok_or_else(|| LifetimeError::new_err(t!("`RelationHandle` lifetime mismatch")))
-    }
-
-    pub(super) fn index_and_wref(&self) -> (NodeIndex, &Py<PyWeakrefReference>) {
-        (self.index, &self.related_obj)
     }
 
     pub(super) fn index_and_ref<'py>(
         &self,
         py: Python<'py>,
     ) -> PyResult<(NodeIndex, Bound<'py, PyAny>)> {
-        Ok((self.index, self.get_ref(py)?))
+        Ok((self.index, self.obj_ref(py)?))
     }
 
     /// Used for borrow mutable [RelationRegistry] when modifying children
-    fn with_mut_registry<F, R>(&self, py: Python<'_>, f: F) -> PyResult<R>
-    where
-        F: FnOnce(PyRefMut<'_, RelationRegistry>) -> PyResult<R>,
-    {
-        let registry = self.registry.try_borrow_mut(py).map_err(|_| {
+    fn registry_mut<'py>(&'py self, py: Python<'py>) -> PyResult<PyRefMut<'py, RelationRegistry>> {
+        self.registry.try_borrow_mut(py).map_err(|_| {
             BorrowMutError::new_err(t!(
                 "Cannot modify children while a modification is already in progress"
             ))
-        })?;
-        let ret = f(registry)?;
-        Ok(ret)
+        })
     }
 }
 
 #[pymethods]
 impl RelationHandle {
+    /// Get the reference to `parents` list
+    pub(super) fn parents_ref<'py>(&self, py: Python<'py>) -> &Bound<'py, PyList> {
+        self.parents.bind(py)
+    }
+
+    /// Get the reference to `children` list
+    pub(super) fn children_ref<'py>(&self, py: Python<'py>) -> &Bound<'py, PyList> {
+        self.children.bind(py)
+    }
+
     /// Add child objects
     fn add(
         &self,
         py: Python<'_>,
-        children: Vec<Bound<'_, RelationHandle>>,
+        new_children: Vec<Bound<'_, RelationHandle>>,
         prepend: bool,
     ) -> PyResult<()> {
-        self.with_mut_registry(py, |mut reg| {
-            reg.add_children_to(py, self, children, prepend)
-        })
+        self.registry_mut(py)?
+            .add_children_to(py, self, new_children, prepend)
     }
 
     /// Insert child objects
@@ -86,50 +94,24 @@ impl RelationHandle {
         index: usize,
         children: Vec<Bound<'_, RelationHandle>>,
     ) -> PyResult<()> {
-        self.with_mut_registry(py, |mut reg| {
-            reg.insert_children_to(py, self, index, children)
-        })
+        self.registry_mut(py)?
+            .insert_children_to(py, self, index, children)
     }
 
     /// Remove child objects
     fn remove(&self, py: Python<'_>, children: Vec<Bound<'_, RelationHandle>>) -> PyResult<()> {
-        self.with_mut_registry(py, |mut reg| reg.remove_children_from(py, self, children))
-    }
-
-    /// Reindex children by the `indices`, e.g.
-    ///
-    /// ```plain
-    /// indices = [3, 4, 1, 2]
-    /// children => [children[3], children[4], children[1], children[2]]
-    /// ```
-    fn reindex(&self, py: Python<'_>, indices: Vec<usize>) -> PyResult<()> {
-        self.with_mut_registry(py, |mut reg| reg.reindex_children_of(py, self, indices))
+        self.registry_mut(py)?
+            .remove_children_from(py, self, children)
     }
 
     /// Clear parent objects
     fn clear_parents(&self, py: Python<'_>) -> PyResult<()> {
-        self.with_mut_registry(py, |mut reg| reg.clear_parents_of(py, self))
+        self.registry_mut(py)?.clear_parents_of(py, self)
     }
 
     /// Clear child objects
     fn clear_children(&self, py: Python<'_>) -> PyResult<()> {
-        self.with_mut_registry(py, |mut reg| reg.clear_children_of(py, self))
-    }
-
-    /// Resolve parent objects
-    fn parents<'py>(&self, py: Python<'py>) -> Vec<Bound<'py, PyAny>> {
-        self.registry
-            .borrow(py)
-            .node(self.index)
-            .resolve_parents(py)
-    }
-
-    /// Resolve child objects
-    fn children(&self, py: Python<'_>) -> Vec<Py<PyAny>> {
-        self.registry
-            .borrow(py)
-            .node(self.index)
-            .resolve_children(py)
+        self.registry_mut(py)?.clear_children_of(py, self)
     }
 
     /// Resolve ancestor objects (unordered)
@@ -172,36 +154,6 @@ impl RelationHandle {
             self.registry.clone_ref(py),
             self.registry.borrow(py).descendant_dfs(index)?,
         ))
-    }
-
-    /// Get the count of child objects
-    fn len(&self, py: Python<'_>) -> usize {
-        self.registry.borrow(py).node(self.index).len()
-    }
-
-    /// Check whether `obj` is in the child objects
-    fn contains(&self, py: Python<'_>, obj: Bound<'_, PyAny>) -> bool {
-        self.registry
-            .borrow(py)
-            .node(self.index)
-            .iter_child_refs()
-            .any(|x| x.is(&obj))
-    }
-
-    /// Get the index of `obj` in the child objects
-    fn index_of(&self, py: Python<'_>, obj: Bound<'_, PyAny>) -> PyResult<usize> {
-        self.registry
-            .borrow(py)
-            .node(self.index)
-            .iter_child_refs()
-            .position(|x| x.is(&obj))
-            .ok_or_else(|| {
-                PyValueError::new_err(format!(
-                    "{} not in list",
-                    obj.repr()
-                        .map_or_else(|_| "The object".into(), |v| v.to_string())
-                ))
-            })
     }
 
     /// Check for whether the flag is set
