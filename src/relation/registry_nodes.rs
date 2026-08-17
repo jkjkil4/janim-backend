@@ -139,7 +139,8 @@ impl RelationRegistry {
     pub(super) fn clear_parents_of(&self, py: Python<'_>, root: &RelationHandle) -> PyResult<()> {
         let index = root.index();
 
-        for parent_index in self.nodes().node(index).parents.clone() {
+        let removed_parents = self.nodes().node(index).parents.clone();
+        for parent_index in removed_parents {
             self.remove_by_index(py, parent_index, &vec![index])?;
         }
         Ok(())
@@ -149,7 +150,8 @@ impl RelationRegistry {
     pub(super) fn clear_children_of(&self, py: Python<'_>, root: &RelationHandle) -> PyResult<()> {
         let index = root.index();
 
-        self.remove_by_index(py, index, &self.nodes().node(index).children.clone())
+        let removed_children = self.nodes().node(index).children.clone();
+        self.remove_by_index(py, index, &removed_children)
     }
 }
 
