@@ -1,6 +1,7 @@
 use pyo3::exceptions::PyValueError;
 use pyo3::{prelude::*, types::PyWeakrefReference};
 
+use crate::exception::BorrowMutError;
 use crate::{exception::LifetimeError, utils::upgrade_ref};
 
 use super::iter::{RelationBitsetIterator, RelationVecIterator};
@@ -48,6 +49,20 @@ impl RelationHandle {
     ) -> PyResult<(NodeIndex, Bound<'py, PyAny>)> {
         Ok((self.index, self.get_ref(py)?))
     }
+
+    /// Used for borrow mutable [RelationRegistry] when modifying children
+    fn with_mut_registry<F, R>(&self, py: Python<'_>, f: F) -> PyResult<R>
+    where
+        F: FnOnce(PyRefMut<'_, RelationRegistry>) -> PyResult<R>,
+    {
+        let registry = self.registry.try_borrow_mut(py).map_err(|_| {
+            BorrowMutError::new_err(t!(
+                "Cannot modify children while a modification is already in progress"
+            ))
+        })?;
+        let ret = f(registry)?;
+        Ok(ret)
+    }
 }
 
 #[pymethods]
@@ -59,9 +74,9 @@ impl RelationHandle {
         children: Vec<Bound<'_, RelationHandle>>,
         prepend: bool,
     ) -> PyResult<()> {
-        self.registry
-            .borrow_mut(py)
-            .add_children_to(py, self, children, prepend)
+        self.with_mut_registry(py, |mut reg| {
+            reg.add_children_to(py, self, children, prepend)
+        })
     }
 
     /// Insert child objects
@@ -71,16 +86,14 @@ impl RelationHandle {
         index: usize,
         children: Vec<Bound<'_, RelationHandle>>,
     ) -> PyResult<()> {
-        self.registry
-            .borrow_mut(py)
-            .insert_children_to(py, self, index, children)
+        self.with_mut_registry(py, |mut reg| {
+            reg.insert_children_to(py, self, index, children)
+        })
     }
 
     /// Remove child objects
     fn remove(&self, py: Python<'_>, children: Vec<Bound<'_, RelationHandle>>) -> PyResult<()> {
-        self.registry
-            .borrow_mut(py)
-            .remove_children_from(self, children)
+        self.with_mut_registry(py, |mut reg| reg.remove_children_from(py, self, children))
     }
 
     /// Reindex children by the `indices`, e.g.
@@ -90,19 +103,17 @@ impl RelationHandle {
     /// children => [children[3], children[4], children[1], children[2]]
     /// ```
     fn reindex(&self, py: Python<'_>, indices: Vec<usize>) -> PyResult<()> {
-        self.registry
-            .borrow_mut(py)
-            .reindex_children_of(py, self, indices)
+        self.with_mut_registry(py, |mut reg| reg.reindex_children_of(py, self, indices))
     }
 
     /// Clear parent objects
     fn clear_parents(&self, py: Python<'_>) -> PyResult<()> {
-        self.registry.borrow_mut(py).clear_parents_of(py, self)
+        self.with_mut_registry(py, |mut reg| reg.clear_parents_of(py, self))
     }
 
     /// Clear child objects
     fn clear_children(&self, py: Python<'_>) -> PyResult<()> {
-        self.registry.borrow_mut(py).clear_children_of(self)
+        self.with_mut_registry(py, |mut reg| reg.clear_children_of(py, self))
     }
 
     /// Resolve parent objects

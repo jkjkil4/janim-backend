@@ -22,7 +22,7 @@ impl RelationRegistry {
     ) -> PyResult<()> {
         let (index, wref) = root.index_and_wref();
 
-        self.children_changed(index)?;
+        self.children_changed(py, index)?;
         for child in children {
             let (child_index, child_obj) = child.borrow().index_and_ref(py)?;
 
@@ -40,7 +40,7 @@ impl RelationRegistry {
                 node.children.push(add_to_children);
                 self.node_mut(child_index).parents.push(add_to_parents);
             }
-            self.parents_changed(child_index)?;
+            self.parents_changed(py, child_index)?;
         }
         Ok(())
     }
@@ -57,7 +57,7 @@ impl RelationRegistry {
 
         let insert_index = insert_index.min(self.node(index).children.len());
 
-        self.children_changed(index)?;
+        self.children_changed(py, index)?;
         for (i, child) in children.into_iter().enumerate() {
             let (child_index, child_obj) = child.borrow().index_and_ref(py)?;
 
@@ -72,7 +72,7 @@ impl RelationRegistry {
             node.children.insert(insert_index + i, add_to_children);
             self.node_mut(child_index).parents.push(add_to_parents);
 
-            self.parents_changed(child_index)?;
+            self.parents_changed(py, child_index)?;
         }
         Ok(())
     }
@@ -80,10 +80,12 @@ impl RelationRegistry {
     // Remove child objects
     pub(super) fn remove_children_from(
         &mut self,
+        py: Python<'_>,
         root: &RelationHandle,
         children: Vec<Bound<'_, RelationHandle>>,
     ) -> PyResult<()> {
         self.remove_by_index(
+            py,
             root.index(),
             &children
                 .into_iter()
@@ -133,7 +135,7 @@ impl RelationRegistry {
             .collect::<PyResult<Vec<_>>>()?;
 
         node.children = children;
-        self.children_changed(node_index)?;
+        self.children_changed(py, node_index)?;
         Ok(())
     }
 
@@ -154,16 +156,21 @@ impl RelationRegistry {
             .collect();
 
         for parent_index in parent_indices {
-            self.remove_by_index(parent_index, &vec![index])?;
+            self.remove_by_index(py, parent_index, &vec![index])?;
         }
         Ok(())
     }
 
     /// Clear child objects
-    pub(super) fn clear_children_of(&mut self, root: &RelationHandle) -> PyResult<()> {
+    pub(super) fn clear_children_of(
+        &mut self,
+        py: Python<'_>,
+        root: &RelationHandle,
+    ) -> PyResult<()> {
         let index = root.index();
 
         self.remove_by_index(
+            py,
             index,
             &self
                 .node(index)
@@ -186,8 +193,13 @@ impl RelationRegistry {
         &mut self.nodes[node_index - self.offset]
     }
 
-    fn remove_by_index(&mut self, index: NodeIndex, children: &Vec<NodeIndex>) -> PyResult<()> {
-        self.children_changed(index)?;
+    fn remove_by_index(
+        &mut self,
+        py: Python<'_>,
+        index: NodeIndex,
+        children: &Vec<NodeIndex>,
+    ) -> PyResult<()> {
+        self.children_changed(py, index)?;
 
         for &child_index in children {
             let node = self.node_mut(index);
@@ -203,26 +215,38 @@ impl RelationRegistry {
             let child_parents = &mut self.node_mut(child_index).parents;
             child_parents.remove(child_parents.iter().position(|x| x.0 == index).unwrap());
 
-            self.parents_changed(child_index)?;
+            self.parents_changed(py, child_index)?;
         }
         Ok(())
     }
 
-    fn parents_changed(&self, index: NodeIndex) -> PyResult<()> {
-        self.node(index).reset_ancestors();
+    fn parents_changed(&self, py: Python<'_>, index: NodeIndex) -> PyResult<()> {
+        let node = self.node(index);
+        node.reset_ancestors();
         let descendants = self.descendant_set(index)?;
         for child in descendants.iter() {
             self.node(child).reset_ancestors();
         }
+        // Call the python callback
+        node.resolve_self(py)?
+            .unwrap()
+            .getattr("_parents_changed")?
+            .call0()?;
         Ok(())
     }
 
-    fn children_changed(&self, index: NodeIndex) -> PyResult<()> {
-        self.node(index).reset_descendants();
+    fn children_changed(&self, py: Python<'_>, index: NodeIndex) -> PyResult<()> {
+        let node = self.node(index);
+        node.reset_descendants();
         let ancestors = self.ancestor_set(index)?;
         for child in ancestors.iter() {
             self.node(child).reset_descendants();
         }
+        // Call the python callback
+        node.resolve_self(py)?
+            .unwrap()
+            .getattr("_children_changed")?
+            .call0()?;
         Ok(())
     }
 
@@ -333,6 +357,15 @@ fn new_cycle_err() -> PyErr {
 pub(super) enum ResolveResult<'py> {
     Resolved(Bound<'py, PyAny>),
     Expired,
+}
+
+impl<'py> ResolveResult<'py> {
+    fn unwrap(self) -> Bound<'py, PyAny> {
+        match self {
+            ResolveResult::Resolved(obj) => obj,
+            ResolveResult::Expired => panic!(),
+        }
+    }
 }
 
 pub(super) struct Node {
