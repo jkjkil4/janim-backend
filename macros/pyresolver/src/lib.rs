@@ -68,8 +68,8 @@ fn impl_py_resolver(input: DeriveInput) -> syn::Result<TokenStream2> {
         .ok_or_else(|| syn::Error::new_spanned(&name, "missing #[pyresolver(module = \"...\")]"))?;
 
     let code_wrapper_methods = match input.data {
-        Data::Struct(data) => wrapper_methods_for_struct(&name, &wrapper_ident, data),
-        Data::Enum(data) => wrapper_methods_for_enum(&name, &wrapper_ident, data),
+        Data::Struct(data) => wrapper_methods_for_struct(&name, data),
+        Data::Enum(data) => wrapper_methods_for_enum(&name, data),
         _ => {
             return Err(syn::Error::new_spanned(
                 name,

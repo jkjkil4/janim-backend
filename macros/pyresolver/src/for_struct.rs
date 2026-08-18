@@ -4,11 +4,7 @@ use syn::{DataStruct, Fields, Ident, Type};
 
 use crate::utils::{is_resolver, resolver_expr};
 
-pub fn wrapper_methods_for_struct(
-    name: &Ident,
-    wrapper_ident: &Ident,
-    data: DataStruct,
-) -> syn::Result<TokenStream2> {
+pub fn wrapper_methods_for_struct(name: &Ident, data: DataStruct) -> syn::Result<TokenStream2> {
     let Fields::Named(fields) = data.fields else {
         return Err(syn::Error::new_spanned(
             name,

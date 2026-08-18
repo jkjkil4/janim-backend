@@ -4,11 +4,7 @@ use syn::{DataEnum, Ident, Type};
 
 use crate::utils::{is_resolver, resolver_expr};
 
-pub fn wrapper_methods_for_enum(
-    name: &Ident,
-    wrapper_ident: &Ident,
-    data: DataEnum,
-) -> syn::Result<TokenStream2> {
+pub fn wrapper_methods_for_enum(name: &Ident, data: DataEnum) -> syn::Result<TokenStream2> {
     let mut initializers = Vec::new();
 
     for variant in data.variants {
