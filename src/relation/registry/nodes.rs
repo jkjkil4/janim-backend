@@ -245,7 +245,7 @@ impl RelationRegistry {
         // Call the python callback
         node.resolve_self(py)?
             .unwrap()
-            .getattr("_parents_changed")?
+            .getattr(crate::attr_names::ITEM_RELATION__PARENTS_CHANGED)?
             .call0()?;
         Ok(())
     }
@@ -262,7 +262,7 @@ impl RelationRegistry {
         // Call the python callback
         node.resolve_self(py)?
             .unwrap()
-            .getattr("_children_changed")?
+            .getattr(crate::attr_names::ITEM_RELATION__CHILDREN_CHANGED)?
             .call0()?;
         Ok(())
     }

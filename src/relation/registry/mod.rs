@@ -6,11 +6,12 @@ use std::{cell::RefCell, collections::HashMap};
 
 use pyo3::prelude::*;
 
+pub use flags::FlagHandle;
+pub use nodes::ResolveResult;
+
 use super::bitset::OffsetBitSet;
 use super::handle::RelationHandle;
-pub use flags::FlagHandle;
 use nodes::Node;
-pub use nodes::ResolveResult;
 
 pub type NodeIndex = usize;
 
