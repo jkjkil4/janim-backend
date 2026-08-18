@@ -2,7 +2,7 @@ use ndarray::Array2;
 use numpy::{IntoPyArray, PyArray2, PyReadonlyArray2};
 use pyo3::prelude::*;
 
-/// Compute the bounding box of Nx3 `points`.
+/// Compute the bounding box of Nx3 `points`, the `points` cannot be empty.
 ///
 /// Returns the 3x3 NumPy array, represents `[bottom-left, center, top-right]` points.
 #[pyfunction]
@@ -11,10 +11,6 @@ pub fn compute_bounding_box(
     py: Python<'_>,
 ) -> Py<PyArray2<f32>> {
     let points = points.as_array();
-
-    if points.nrows() == 0 {
-        return PyArray2::zeros(py, [3, 3], false).unbind();
-    }
 
     let mut mins = [f32::INFINITY; 3];
     let mut maxs = [f32::NEG_INFINITY; 3];
