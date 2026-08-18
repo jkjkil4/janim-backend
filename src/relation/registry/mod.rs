@@ -10,6 +10,7 @@ pub use flags::FlagHandle;
 pub use nodes::ResolveResult;
 
 use super::bitset::OffsetBitSet;
+use super::cmpt_bind::BinderHandle;
 use super::handle::RelationHandle;
 use nodes::Node;
 
@@ -108,7 +109,7 @@ impl RelationRegistry {
     }
 
     /// Indexize a `str` to an corresponding `id`
-    fn indexize_key(&self, key: &str) -> usize {
+    pub fn indexize_key(&self, key: &str) -> usize {
         let mut mapping = self.indexize_mapping.borrow_mut();
         match mapping.get(key) {
             Some(value) => *value,
@@ -117,5 +118,13 @@ impl RelationRegistry {
                 *mapping.entry(key.to_owned()).or_insert(id)
             }
         }
+    }
+
+    /// Create a `BinderHandle`
+    fn create_binder<'py>(
+        slf: Bound<'_, Self>,
+        py: Python<'py>,
+    ) -> PyResult<Bound<'py, BinderHandle>> {
+        Ok(Py::new(py, BinderHandle::new(slf.unbind()))?.into_bound(py))
     }
 }

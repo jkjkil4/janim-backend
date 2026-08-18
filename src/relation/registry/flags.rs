@@ -23,6 +23,10 @@ impl FlagHandle {
             recurse_down,
         }
     }
+    #[inline]
+    pub fn flag_1(&self) -> usize {
+        self.flag_1
+    }
 }
 
 impl RelationRegistry {
@@ -31,7 +35,7 @@ impl RelationRegistry {
         &self,
         index: NodeIndex,
         flag_0: usize,
-        flag_handle: Bound<'_, FlagHandle>,
+        flag_handle: &Bound<'_, FlagHandle>,
     ) -> bool {
         let flag_handle = flag_handle.borrow();
         match self
@@ -49,7 +53,7 @@ impl RelationRegistry {
         &self,
         index: NodeIndex,
         flag_0: usize,
-        flag_handle: Bound<'_, FlagHandle>,
+        flag_handle: &Bound<'_, FlagHandle>,
     ) {
         let flag_handle = flag_handle.borrow();
 

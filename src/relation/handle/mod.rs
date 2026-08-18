@@ -173,7 +173,7 @@ impl RelationHandle {
         &self,
         py: Python<'_>,
         flag_0: usize,
-        flag_handle: Bound<'_, FlagHandle>,
+        flag_handle: &Bound<'_, FlagHandle>,
     ) -> bool {
         self.registry
             .borrow(py)
@@ -185,7 +185,7 @@ impl RelationHandle {
         &self,
         py: Python<'_>,
         flag_0: usize,
-        flag_handle: Bound<'_, FlagHandle>,
+        flag_handle: &Bound<'_, FlagHandle>,
     ) {
         self.registry
             .borrow(py)
@@ -197,7 +197,7 @@ impl RelationHandle {
         &self,
         py: Python<'_>,
         flag_0: usize,
-        flag_handle: Bound<'_, FlagHandle>,
+        flag_handle: &Bound<'_, FlagHandle>,
     ) -> PyResult<()> {
         self.registry
             .borrow(py)
