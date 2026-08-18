@@ -1,6 +1,7 @@
 mod attr_names;
 mod exception;
 mod relation;
+mod render;
 mod utils;
 
 use pyo3::prelude::*;
@@ -18,6 +19,8 @@ mod janim_backend {
     use super::exception::exception;
     #[pymodule_export]
     use super::relation::relation;
+    #[pymodule_export]
+    use super::render::render;
 
     #[pyfunction]
     pub fn set_locale(locale: &str) {
@@ -29,6 +32,7 @@ mod janim_backend {
         let patcher = crate::SubModulePatcher::new(m, "janim_backend")?;
         patcher.patch("exception")?;
         patcher.patch("relation")?;
+        patcher.patch("render")?;
         Ok(())
     }
 }
