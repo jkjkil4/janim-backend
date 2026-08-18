@@ -1,6 +1,7 @@
 mod iter;
 
 use pyo3::types::PyList;
+use pyo3::{PyTraverseError, PyVisit};
 use pyo3::{prelude::*, types::PyWeakrefReference};
 
 use crate::exception::BorrowMutError;
@@ -73,6 +74,20 @@ impl RelationHandle {
 
 #[pymethods]
 impl RelationHandle {
+    // GC compatibility
+    fn __traverse__(&self, visit: PyVisit<'_>) -> Result<(), PyTraverseError> {
+        visit.call(&self.parents)?;
+        visit.call(&self.children)?;
+        Ok(())
+    }
+    fn __clear__(&self, py: Python<'_>) -> PyResult<()> {
+        let parents = self.parents_ref(py);
+        parents.del_slice(0, parents.len())?;
+        let children = self.children_ref(py);
+        children.del_slice(0, children.len())?;
+        Ok(())
+    }
+
     /// Get the reference to `parents` list
     pub(super) fn parents_ref<'py>(&self, py: Python<'py>) -> &Bound<'py, PyList> {
         self.parents.bind(py)
