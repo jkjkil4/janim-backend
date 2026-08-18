@@ -2,6 +2,7 @@ mod flags;
 mod nodes;
 mod recursive_cache;
 
+use std::fmt::Write;
 use std::{cell::RefCell, collections::HashMap};
 
 use pyo3::prelude::*;
@@ -11,7 +12,7 @@ pub use nodes::ResolveResult;
 
 use super::bitset::OffsetBitSet;
 use super::handle::RelationHandle;
-use nodes::Node;
+use nodes::{Node, Nodes};
 
 pub type NodeIndex = usize;
 
@@ -39,10 +40,9 @@ pub type NodeIndex = usize;
 /// so that we do not conflict on the borrow checker on `RelationRegistry` self
 #[pyclass(module = "janim_backend.relation", unsendable, skip_from_py_object)]
 pub struct RelationRegistry {
-    offset: usize,
-    nodes: RefCell<Vec<Node>>,
+    nodes: RefCell<Nodes>,
 
-    computed_flags: RefCell<HashMap<(usize, usize), OffsetBitSet>>, // TODO: trim invalid node indices
+    computed_flags: RefCell<HashMap<(usize, usize), OffsetBitSet>>,
     indexize_mapping: RefCell<HashMap<String, usize>>,
 }
 
@@ -51,8 +51,7 @@ impl RelationRegistry {
     #[new]
     fn new() -> Self {
         Self {
-            offset: 0,
-            nodes: Default::default(),
+            nodes: RefCell::new(Nodes::new()),
             computed_flags: Default::default(),
             indexize_mapping: Default::default(),
         }
@@ -66,33 +65,34 @@ impl RelationRegistry {
         py: Python<'py>,
         related_obj: Bound<'py, PyAny>,
     ) -> PyResult<Bound<'py, RelationHandle>> {
-        let index = slf.borrow().nodes.borrow().len();
-        let handle = Py::new(
-            py,
-            RelationHandle::new(py, slf.clone().unbind(), index, &related_obj)?,
-        )?
-        .into_bound(py);
+        slf.borrow().nodes.borrow_mut().push(|index| {
+            let handle = Py::new(
+                py,
+                RelationHandle::new(py, slf.clone().unbind(), index, &related_obj)?,
+            )?
+            .into_bound(py);
 
-        let node = Node::new(&handle)?;
-        slf.borrow().nodes.borrow_mut().push(node);
+            let node = Node::new(&handle)?;
 
-        Ok(handle)
+            Ok((node, handle))
+        })
+    }
+
+    /// Cut a new chunk for the nodes registry,
+    /// allowing `cleanup` to remove preceding dead chunks.
+    fn cut_nodes_chunk(&self) {
+        self.nodes.borrow_mut().cut();
     }
 
     /// Clean the leading invalid-nodes and the bitsets
     fn cleanup(&mut self, py: Python<'_>) {
+        // Since `OffsetBitset` is small enough,
+        // we don't plan to apply the same chunking optimization used by `Nodes` to `computed_flags`.
         for set in &mut self.computed_flags.borrow_mut().values_mut() {
             set.cleanup();
         }
 
-        let leading = self
-            .nodes
-            .borrow()
-            .iter()
-            .take_while(|node| !node.alive(py))
-            .count();
-        self.nodes.borrow_mut().drain(..leading);
-        self.offset += leading;
+        self.nodes.borrow_mut().cleanup(py);
     }
 
     /// Create a `FlagHandle`
@@ -117,5 +117,52 @@ impl RelationRegistry {
                 *mapping.entry(key.to_owned()).or_insert(id)
             }
         }
+    }
+
+    /// Get statistics string of member data structures,
+    /// used for debugging in Python
+    fn printable_statistics(&self, py: Python<'_>) -> String {
+        let mut s = String::new();
+
+        // self.nodes
+
+        self.nodes.borrow().printable_statistics(py, &mut s);
+        writeln!(s).unwrap();
+
+        // self.computed_flags
+
+        let mapping = self.indexize_mapping.borrow();
+        let to_key = |index: usize| {
+            mapping
+                .iter()
+                .find(|(_, v)| **v == index)
+                .map(|(k, _)| k.clone())
+                .unwrap_or_else(|| index.to_string())
+        };
+
+        writeln!(s, "Computed flags:").unwrap();
+        for ((flag_0, flag_1), set) in self.computed_flags.borrow().iter() {
+            let (start, end) = set.range();
+
+            let entry = format!("\"{}.{}\"", to_key(*flag_0), to_key(*flag_1));
+
+            let (range, appendix) = if start == end {
+                (String::from("word-range: (Empty)"), String::default())
+            } else {
+                let bytes = (end - start) * 8;
+                (
+                    format!("word-range: [{}, {})", start, end),
+                    if bytes < 1024 {
+                        format!("@ {} Bytes", bytes)
+                    } else {
+                        format!("@ {:.1} KB", (bytes as f64) / 1024.0)
+                    },
+                )
+            };
+
+            writeln!(s, "- {:<34} {:<10} {}", entry, range, appendix).unwrap();
+        }
+
+        s
     }
 }

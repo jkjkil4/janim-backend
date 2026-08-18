@@ -1,4 +1,5 @@
 use std::cell::{Ref, RefCell, RefMut};
+use std::fmt::Write;
 use std::rc::Rc;
 
 use pyo3::prelude::*;
@@ -11,6 +12,122 @@ use super::OffsetBitSet;
 use super::RelationHandle;
 use super::recursive_cache::RecursiveCache;
 use super::{NodeIndex, RelationRegistry};
+
+pub(super) struct Nodes {
+    chunks: Vec<Chunk>,
+    next_id: usize,
+}
+
+struct Chunk {
+    start_id: usize,
+    nodes: Vec<Node>,
+}
+
+impl Nodes {
+    pub fn new() -> Self {
+        Self {
+            chunks: vec![Chunk {
+                start_id: 0,
+                nodes: Vec::new(),
+            }],
+            next_id: 0,
+        }
+    }
+
+    pub fn push<F, R>(&mut self, f: F) -> PyResult<R>
+    where
+        F: FnOnce(usize) -> PyResult<(Node, R)>,
+    {
+        let id = self.next_id;
+        self.next_id += 1;
+
+        let (node, ret) = f(id)?;
+        self.chunks.last_mut().unwrap().nodes.push(node);
+
+        Ok(ret)
+    }
+
+    /// Cut a new chunk.
+    pub fn cut(&mut self) {
+        if self.chunks.last().unwrap().nodes.is_empty() {
+            return;
+        }
+        self.chunks.push(Chunk {
+            start_id: self.next_id,
+            nodes: Vec::new(),
+        });
+    }
+
+    /// Remove chunks whose nodes are all dead.
+    pub fn cleanup(&mut self, py: Python<'_>) {
+        let last = self.chunks.pop().unwrap();
+
+        self.chunks
+            .retain(|chunk| chunk.nodes.iter().any(|node| node.alive(py)));
+
+        self.chunks.push(last);
+    }
+
+    #[inline]
+    pub fn node(&self, index: usize) -> &Node {
+        let chunk_index = self.find_chunk(index);
+        let chunk = &self.chunks[chunk_index];
+
+        &chunk.nodes[index - chunk.start_id]
+    }
+
+    #[inline]
+    pub fn node_mut(&mut self, index: usize) -> &mut Node {
+        let chunk_index = self.find_chunk(index);
+        let chunk = &mut self.chunks[chunk_index];
+
+        &mut chunk.nodes[index - chunk.start_id]
+    }
+
+    #[inline]
+    fn find_chunk(&self, index: usize) -> usize {
+        let chunk_index = self.chunks.partition_point(|chunk| chunk.start_id <= index);
+        chunk_index - 1
+    }
+
+    /// Get statistics string, used for debugging in Python
+    pub(super) fn printable_statistics(&self, py: Python<'_>, s: &mut String) {
+        write!(s, "Recorded range:").unwrap();
+
+        let mut nodes_len = 0;
+        let mut alive_count = 0;
+
+        let mut range_start = None;
+        let mut range_end = 0;
+
+        for chunk in &self.chunks {
+            let start = chunk.start_id;
+            let end = start + chunk.nodes.len();
+
+            if range_start.is_none() {
+                range_start = Some(start);
+                range_end = end;
+            } else if start == range_end {
+                range_end = end;
+            } else {
+                write!(s, " [{}, {})", range_start.unwrap(), range_end).unwrap();
+                range_start = Some(start);
+                range_end = end;
+            }
+
+            nodes_len += chunk.nodes.len();
+            alive_count += chunk.nodes.iter().filter(|node| node.alive(py)).count();
+        }
+
+        if let Some(start) = range_start {
+            write!(s, " [{}, {})", start, range_end).unwrap();
+        }
+
+        writeln!(s).unwrap();
+        writeln!(s, "- Length: {}", nodes_len).unwrap();
+        writeln!(s, "- Alive nodes: {}", alive_count).unwrap();
+    }
+}
 
 impl RelationRegistry {
     /// Add child objects
@@ -165,17 +282,17 @@ impl RelationRegistry {
 
 /// Used for provide compile-time borrow checker in function scope.
 pub struct NodesBorrower<'a> {
-    nodes: &'a RefCell<Vec<Node>>,
+    nodes: &'a RefCell<Nodes>,
 }
 
 impl<'a> NodesBorrower<'a> {
     #[inline]
     pub fn node(&self, index: usize) -> Ref<'_, Node> {
-        Ref::map(self.nodes.borrow(), |nodes| &nodes[index])
+        Ref::map(self.nodes.borrow(), |nodes| nodes.node(index))
     }
     #[inline]
     pub fn node_mut(&mut self, index: usize) -> RefMut<'_, Node> {
-        RefMut::map(self.nodes.borrow_mut(), |nodes| &mut nodes[index])
+        RefMut::map(self.nodes.borrow_mut(), |nodes| nodes.node_mut(index))
     }
 }
 
