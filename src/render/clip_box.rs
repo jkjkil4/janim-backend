@@ -8,52 +8,25 @@ use pyo3::types::PyBytes;
 /// The eight corners of the bounding box are mapped to GL coordinates,
 /// and the resulting 2D bounding box is expanded by `buff`.
 ///
-/// If `fixed_in_frame` is true, `proj_matrix` is used and
-/// `fixed_distance_from_plane` is subtracted from the z coordinate of every
-/// corner. Otherwise, `proj_view_matrix` is used without modifying the
-/// coordinates.
-///
-/// The resulting four corners are returned as 8 consecutive `f32` values:
-///
-/// ```text
-/// [
-///     min_x, min_y,
-///     min_x, max_y,
-///     max_x, min_y,
-///     max_x, max_y,
-/// ]
-/// ```
-///
 /// The coordinates are clamped to the GL clip range `[-1, 1]`.
 ///
 /// # Arguments
 ///
-/// * `mins` - A one-dimensional NumPy array containing the minimum
-///   `[x, y, z]` coordinates of the bounding box. Must have shape `(3,)`.
+/// * `mins` - The minimum `[x, y, z]` coordinates of the bounding box. Must have shape `(3,)`.
 ///
-/// * `maxs` - A one-dimensional NumPy array containing the maximum
-///   `[x, y, z]` coordinates of the bounding box. Must have shape `(3,)`.
+/// * `maxs` - The maximum `[x, y, z]` coordinates of the bounding box. Must have shape `(3,)`.
 ///
-/// * `proj_view_matrix` - The 4x4 projection-view matrix used to map points
-///   to GL coordinates when `fixed_in_frame` is false. Must have shape
-///   `(4, 4)`.
+/// * `proj_view_matrix` - The 4x4 projection-view matrix used when `fixed_in_frame` is false. Must have shape `(4, 4)`.
 ///
-/// * `proj_matrix` - The 4x4 projection matrix used to map points to GL
-///   coordinates when `fixed_in_frame` is true. Must have shape `(4, 4)`.
+/// * `proj_matrix` - The 4x4 projection matrix used when `fixed_in_frame` is true. Must have shape `(4, 4)`.
 ///
-/// * `fixed_in_frame` - Whether the bounding box should be mapped using the
-///   fixed-in-frame projection. When true, `fixed_distance_from_plane` is
-///   subtracted from every point's z coordinate and `proj_matrix` is used.
+/// * `fixed_in_frame` - Whether the bounding box should be mapped using the fixed-in-frame projection.
 ///
-/// * `fixed_distance_from_plane` - The distance to subtract from the z
-///   coordinate when `fixed_in_frame` is true.
+/// * `fixed_distance_from_plane` - The distance to subtract from the z coordinate when `fixed_in_frame` is true.
 ///
-/// * `frame_radius` - A one-dimensional NumPy array containing the x and y
-///   frame radii. Must have shape `(2,)`. The x and y components are applied
-///   independently to the corresponding GL coordinates.
+/// * `frame_radius` - Containing the x and y frame radii. Must have shape `(2,)`.
 ///
-/// * `buff` - The amount by which to expand the resulting bounding box,
-///   expressed in the same units as `frame_radius`.
+/// * `buff` - The amount by which to expand the resulting bounding box, expressed in the same units as `frame_radius`.
 ///
 /// # Returns
 ///
