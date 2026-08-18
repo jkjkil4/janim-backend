@@ -9,10 +9,14 @@ name = "janim_backend"
 crate-type = ["cdylib"]
 
 [dependencies]
-anyhow = "1.0.104"
 pyo3 = { version = "0.29.0", features = ["experimental-inspect"] }
+# i18n
 rust-i18n = "4.2.1"
 serde_yaml = "0.9.34"
+# macros
+pyresolver = { path = "./macros/pyresolver" }
+# others
+anyhow = "1.0.104"
 
 [package.metadata.i18n]
 available-locales = ["en", "zh_CN"]

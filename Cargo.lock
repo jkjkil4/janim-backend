@@ -276,6 +276,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "pyo3",
+ "pyresolver",
  "rust-i18n",
  "serde_yaml",
 ]
@@ -405,6 +406,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "571575aa3749fa6216757dd47d2a3e7ef360f329a40f0666a9fbd14889024952"
 dependencies = [
  "heck",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
+]
+
+[[package]]
+name = "pyresolver"
+version = "0.1.0"
+dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.119",
