@@ -1,12 +1,16 @@
+mod iter;
+
 use pyo3::types::PyList;
 use pyo3::{prelude::*, types::PyWeakrefReference};
 
 use crate::exception::BorrowMutError;
 use crate::{exception::LifetimeError, utils::upgrade_ref};
 
-use super::iter::{RelationBitsetIterator, RelationVecIterator};
-use super::registry_flags::FlagHandle;
-use super::{NodeIndex, RelationRegistry};
+use super::registry;
+use registry::{FlagHandle, RelationRegistry};
+
+use super::NodeIndex;
+pub use iter::{RelationBitsetIterator, RelationVecIterator};
 
 #[pyclass(module = "janim_backend.relation", weakref, skip_from_py_object)]
 pub(super) struct RelationHandle {

@@ -2,12 +2,12 @@ use std::rc::Rc;
 
 use pyo3::prelude::*;
 
-use super::bitset::OffsetBitSetIter;
-use super::registry_nodes::ResolveResult;
+use super::super::bitset::OffsetBitSetIter;
+use super::registry::ResolveResult;
 use super::{NodeIndex, RelationRegistry};
 
 #[pyclass(module = "janim_backend.relation", unsendable, skip_from_py_object)]
-pub(super) struct RelationBitsetIterator {
+pub struct RelationBitsetIterator {
     pub registry: Py<RelationRegistry>,
     pub iter: OffsetBitSetIter,
 }
@@ -38,7 +38,7 @@ impl RelationBitsetIterator {
 }
 
 #[pyclass(module = "janim_backend.relation", unsendable, skip_from_py_object)]
-pub(super) struct RelationVecIterator {
+pub struct RelationVecIterator {
     registry: Py<RelationRegistry>,
     vec: Rc<Vec<NodeIndex>>,
     current: usize,

@@ -7,14 +7,14 @@ use pyo3::types::PyWeakrefReference;
 use crate::exception::RelationError;
 use crate::utils::upgrade_ref;
 
-use super::bitset::OffsetBitSet;
-use super::cache::RecursiveCache;
-use super::handle::RelationHandle;
+use super::OffsetBitSet;
+use super::RelationHandle;
+use super::recursive_cache::RecursiveCache;
 use super::{NodeIndex, RelationRegistry};
 
 impl RelationRegistry {
     /// Add child objects
-    pub(super) fn add_children_to(
+    pub(in crate::relation) fn add_children_to(
         &self,
         py: Python<'_>,
         root: &RelationHandle,
@@ -67,7 +67,7 @@ impl RelationRegistry {
     }
 
     // Insert child objects
-    pub(super) fn insert_children_to(
+    pub(in crate::relation) fn insert_children_to(
         &self,
         py: Python<'_>,
         root: &RelationHandle,
@@ -119,7 +119,7 @@ impl RelationRegistry {
     }
 
     // Remove child objects
-    pub(super) fn remove_children_from(
+    pub(in crate::relation) fn remove_children_from(
         &self,
         py: Python<'_>,
         root: &RelationHandle,
@@ -136,7 +136,11 @@ impl RelationRegistry {
     }
 
     /// Clear parent objects
-    pub(super) fn clear_parents_of(&self, py: Python<'_>, root: &RelationHandle) -> PyResult<()> {
+    pub(in crate::relation) fn clear_parents_of(
+        &self,
+        py: Python<'_>,
+        root: &RelationHandle,
+    ) -> PyResult<()> {
         let index = root.index();
 
         let removed_parents = self.nodes().node(index).parents.clone();
@@ -147,7 +151,11 @@ impl RelationRegistry {
     }
 
     /// Clear child objects
-    pub(super) fn clear_children_of(&self, py: Python<'_>, root: &RelationHandle) -> PyResult<()> {
+    pub(in crate::relation) fn clear_children_of(
+        &self,
+        py: Python<'_>,
+        root: &RelationHandle,
+    ) -> PyResult<()> {
         let index = root.index();
 
         let removed_children = self.nodes().node(index).children.clone();
@@ -156,24 +164,24 @@ impl RelationRegistry {
 }
 
 /// Used for provide compile-time borrow checker in function scope.
-pub(super) struct NodesBorrower<'a> {
+pub struct NodesBorrower<'a> {
     nodes: &'a RefCell<Vec<Node>>,
 }
 
 impl<'a> NodesBorrower<'a> {
     #[inline]
-    pub(super) fn node(&self, index: usize) -> Ref<'_, Node> {
+    pub fn node(&self, index: usize) -> Ref<'_, Node> {
         Ref::map(self.nodes.borrow(), |nodes| &nodes[index])
     }
     #[inline]
-    pub(super) fn node_mut(&mut self, index: usize) -> RefMut<'_, Node> {
+    pub fn node_mut(&mut self, index: usize) -> RefMut<'_, Node> {
         RefMut::map(self.nodes.borrow_mut(), |nodes| &mut nodes[index])
     }
 }
 
 impl RelationRegistry {
     #[inline]
-    pub(super) fn nodes<'a>(&'a self) -> NodesBorrower<'a> {
+    pub fn nodes<'a>(&'a self) -> NodesBorrower<'a> {
         NodesBorrower { nodes: &self.nodes }
     }
 
@@ -242,7 +250,7 @@ impl RelationRegistry {
         Ok(())
     }
 
-    pub(super) fn children_changed(&self, py: Python<'_>, index: NodeIndex) -> PyResult<()> {
+    pub fn children_changed(&self, py: Python<'_>, index: NodeIndex) -> PyResult<()> {
         let nodes = self.nodes();
 
         let node = nodes.node(index);
@@ -261,7 +269,7 @@ impl RelationRegistry {
 
     /// Get the ancestor bitset with cache,
     /// `Err` if the graph has cycle
-    pub(super) fn ancestor_set(&self, node_index: NodeIndex) -> PyResult<Rc<OffsetBitSet>> {
+    pub fn ancestor_set(&self, node_index: NodeIndex) -> PyResult<Rc<OffsetBitSet>> {
         let nodes = self.nodes();
         let node = nodes.node(node_index);
         self.cached_set(&node.ancestor_set, &node.parents, Self::ancestor_set)
@@ -269,7 +277,7 @@ impl RelationRegistry {
 
     /// Get the descendant bitset with cache,
     /// `Err` if the graph has cycle
-    pub(super) fn descendant_set(&self, node_index: NodeIndex) -> PyResult<Rc<OffsetBitSet>> {
+    pub fn descendant_set(&self, node_index: NodeIndex) -> PyResult<Rc<OffsetBitSet>> {
         let nodes = self.nodes();
         let node = nodes.node(node_index);
         self.cached_set(&node.descendant_set, &node.children, Self::descendant_set)
@@ -301,7 +309,7 @@ impl RelationRegistry {
 
     /// Get the ancestor vec with cache,
     /// `Err` if the graph has cycle
-    pub(super) fn ancestor_dfs(&self, node_index: NodeIndex) -> PyResult<Rc<Vec<NodeIndex>>> {
+    pub fn ancestor_dfs(&self, node_index: NodeIndex) -> PyResult<Rc<Vec<NodeIndex>>> {
         let nodes = self.nodes();
         let node = nodes.node(node_index);
         self.cached_dfs(&node.ancestor_dfs, &node.parents, Self::ancestor_dfs)
@@ -309,7 +317,7 @@ impl RelationRegistry {
 
     /// Get the descendant vec with cache,
     /// `Err` if the graph has cycle
-    pub(super) fn descendant_dfs(&self, node_index: NodeIndex) -> PyResult<Rc<Vec<NodeIndex>>> {
+    pub fn descendant_dfs(&self, node_index: NodeIndex) -> PyResult<Rc<Vec<NodeIndex>>> {
         let nodes = self.nodes();
         let node = nodes.node(node_index);
         self.cached_dfs(&node.descendant_dfs, &node.children, Self::descendant_dfs)
@@ -351,7 +359,7 @@ fn new_cycle_err() -> PyErr {
     ))
 }
 
-pub(super) enum ResolveResult<'py> {
+pub enum ResolveResult<'py> {
     Resolved(Bound<'py, PyAny>),
     Expired,
 }
@@ -365,7 +373,7 @@ impl<'py> ResolveResult<'py> {
     }
 }
 
-pub(super) struct Node {
+pub struct Node {
     /// Used for checking whether a node is alive
     handle_wref: Py<PyWeakrefReference>,
 
@@ -422,7 +430,7 @@ impl Node {
         self.descendant_dfs.reset();
     }
 
-    pub(super) fn resolve_self<'py>(&self, py: Python<'py>) -> PyResult<ResolveResult<'py>> {
+    pub fn resolve_self<'py>(&self, py: Python<'py>) -> PyResult<ResolveResult<'py>> {
         match upgrade_ref(py, &self.handle_wref) {
             Some(py_handle) => {
                 let handle: PyRef<RelationHandle> = py_handle.extract().unwrap();

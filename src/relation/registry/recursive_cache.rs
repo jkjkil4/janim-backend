@@ -6,23 +6,23 @@ enum CacheState<T> {
     Valid(Rc<T>),
 }
 
-pub(super) struct RecursiveCache<T> {
+pub struct RecursiveCache<T> {
     state: RefCell<CacheState<T>>,
 }
 
 impl<T> RecursiveCache<T> {
-    pub(super) fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             state: RefCell::new(CacheState::Outdated),
         }
     }
 
     #[inline]
-    pub(super) fn reset(&self) {
+    pub fn reset(&self) {
         *self.state.borrow_mut() = CacheState::Outdated;
     }
 
-    pub(super) fn get_or_compute<E>(
+    pub fn get_or_compute<E>(
         &self,
         compute: impl FnOnce() -> Result<T, E>,
         cycle_error: impl FnOnce() -> E,

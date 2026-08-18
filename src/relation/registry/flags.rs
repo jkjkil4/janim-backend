@@ -1,6 +1,6 @@
 use pyo3::prelude::*;
 
-use super::bitset::OffsetBitSet;
+use super::OffsetBitSet;
 use super::{NodeIndex, RelationRegistry};
 
 /// Parameter used when calling `RelationRegistry.node_set_flag`
@@ -9,7 +9,7 @@ use super::{NodeIndex, RelationRegistry};
 /// `flag_0` (i.e. Component key) is provided externally,
 /// `flag_1` (e.i. Component method name) is provided along with this `FlagHandle`.
 #[pyclass(module = "janim_backend.relation", frozen, skip_from_py_object)]
-pub(super) struct FlagHandle {
+pub struct FlagHandle {
     flag_1: usize,
     recurse_up: bool,
     recurse_down: bool,
@@ -27,7 +27,7 @@ impl FlagHandle {
 
 impl RelationRegistry {
     /// Check for whether the flag of `index` is set
-    pub(super) fn node_get_computed_for(
+    pub fn node_get_computed_for(
         &self,
         index: NodeIndex,
         flag_0: usize,
@@ -45,7 +45,7 @@ impl RelationRegistry {
     }
 
     /// Reset the computed state to `true`, without considering the recursion
-    pub(super) fn node_mark_computed_for(
+    pub fn node_mark_computed_for(
         &self,
         index: NodeIndex,
         flag_0: usize,
@@ -61,7 +61,7 @@ impl RelationRegistry {
     }
 
     /// Set the computed state to `false`, considering the recursion
-    pub(super) fn node_reset_computed_for(
+    pub fn node_reset_computed_for(
         &self,
         index: NodeIndex,
         flag_0: usize,
