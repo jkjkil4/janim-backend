@@ -143,12 +143,12 @@ impl RelationRegistry {
         let (index, obj_ref) = root.index_and_ref(py)?;
         let self_children = root.children_ref(py);
 
-        for child in new_children {
+        let mut process_child = |child: Bound<'_, RelationHandle>| -> PyResult<()> {
             let (child_index, child_obj) = child.borrow().index_and_ref(py)?;
 
             let mut node = nodes.node_mut(index);
             if node.has_child(child_index) {
-                continue;
+                return Ok(());
             }
 
             let add_to_children = (child_index, child_obj.unbind());
@@ -177,6 +177,17 @@ impl RelationRegistry {
             drop(child_node);
 
             self.parents_changed(py, child_index)?;
+            Ok(())
+        };
+
+        if prepend {
+            for child in new_children.into_iter().rev() {
+                process_child(child)?;
+            }
+        } else {
+            for child in new_children {
+                process_child(child)?;
+            }
         }
 
         self.children_changed(py, index)?;
