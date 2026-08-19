@@ -54,10 +54,8 @@ impl RelationRegistry {
         let flag_handle = flag_handle.borrow();
 
         let mut flags = self.computed_flags.borrow_mut();
-        let Some(set) = flags.get_mut(&(flag_0, flag_handle.flag_1)) else {
-            return;
-        };
-        set.insert(index);
+        let flag_set = flags.entry((flag_0, flag_handle.flag_1)).or_default();
+        flag_set.insert(index);
     }
 
     /// Set the computed state to `false`, considering the recursion
@@ -68,7 +66,9 @@ impl RelationRegistry {
         flag_handle: PyRef<FlagHandle>,
     ) -> PyResult<()> {
         let mut flags = self.computed_flags.borrow_mut();
-        let flag_set = flags.entry((flag_0, flag_handle.flag_1)).or_default();
+        let Some(flag_set) = flags.get_mut(&(flag_0, flag_handle.flag_1)) else {
+            return Ok(());
+        };
 
         if !flag_handle.recurse_up && !flag_handle.recurse_down {
             flag_set.take(index);
