@@ -2,3 +2,9 @@ _version: 2
 The relation graph contains a cycle. Consider checking the inclusion relations between groups.:
   en: The relation graph contains a cycle. Consider checking the inclusion relations between groups.
   zh_CN: 关系图存在环，请检查组之间的包含关系
+Cannot modify children while a modification is already in progress:
+  en: Cannot modify children while a modification is already in progress
+  zh_CN: 修改操作期间无法再次修改 children
+'`RelationHandle` lifetime mismatch':
+  en: '`RelationHandle` lifetime mismatch'
+  zh_CN: '`RelationHandle` 生命周期不匹配'
