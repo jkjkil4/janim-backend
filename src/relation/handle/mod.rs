@@ -184,7 +184,7 @@ impl RelationHandle {
     }
 
     /// Check for whether the flag of `index` is set
-    pub(super) fn get_computed_for(
+    fn get_computed_for(
         &self,
         py: Python<'_>,
         flag_0: usize,
@@ -196,19 +196,14 @@ impl RelationHandle {
     }
 
     /// Set the computed state to `true`, considering the recursion
-    pub(super) fn mark_computed_for(
-        &self,
-        py: Python<'_>,
-        flag_0: usize,
-        flag_handle: Bound<'_, FlagHandle>,
-    ) {
+    fn mark_computed_for(&self, py: Python<'_>, flag_0: usize, flag_handle: Bound<'_, FlagHandle>) {
         self.registry
             .borrow(py)
             .node_mark_computed_for(self.index, flag_0, flag_handle);
     }
 
     /// Reset the computed state to `false`, without considering the recursion
-    pub(super) fn reset_computed_for(
+    fn reset_computed_for(
         &self,
         py: Python<'_>,
         flag_0: usize,
@@ -220,7 +215,7 @@ impl RelationHandle {
     }
 
     /// Reset the computed states in the list to `false`, without considering the recursion
-    pub(super) fn reset_computed_for_list(
+    fn reset_computed_for_list(
         &self,
         py: Python<'_>,
         flag_0: usize,
@@ -232,5 +227,10 @@ impl RelationHandle {
             registry.node_reset_computed_for(self.index, flag_0, flag_handle)?;
         }
         Ok(())
+    }
+
+    /// Reset the computed states of self, without considering the recursion
+    fn reset_computed_for_self(&self, py: Python<'_>) {
+        self.registry.borrow(py).reset_computed_for_node(self.index);
     }
 }

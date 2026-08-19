@@ -88,4 +88,12 @@ impl RelationRegistry {
 
         Ok(())
     }
+
+    /// Set the computed state of a `NodeIndex` to `false`
+    pub fn reset_computed_for_node(&self, index: NodeIndex) {
+        let mut flags = self.computed_flags.borrow_mut();
+        for flag_set in flags.values_mut() {
+            flag_set.take(index);
+        }
+    }
 }
