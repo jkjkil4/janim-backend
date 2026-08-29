@@ -1,7 +1,9 @@
-mod attr_names;
 mod compute;
 mod exception;
+mod math;
 mod relation;
+
+mod attr_names;
 mod utils;
 
 use pyo3::prelude::*;
@@ -20,6 +22,8 @@ mod janim_backend {
     #[pymodule_export]
     use super::exception::exception;
     #[pymodule_export]
+    use super::math::math;
+    #[pymodule_export]
     use super::relation::relation;
 
     #[pyfunction]
@@ -32,6 +36,7 @@ mod janim_backend {
         let patcher = crate::SubModulePatcher::new(m, "janim_backend")?;
         patcher.patch("compute")?;
         patcher.patch("exception")?;
+        patcher.patch("math")?;
         patcher.patch("relation")?;
         Ok(())
     }
