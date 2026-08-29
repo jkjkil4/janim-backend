@@ -11,3 +11,5 @@ This package provides the Rust backend for [JAnim](https://github.com/jkjkil4/JA
     - bit-based ancestors/descendants tracking and `computed` flags
 
 - `src/compute/` provides some accelerated computations implemented in Rust
+
+- `src/math/` provides `Quaternion` class
