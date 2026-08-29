@@ -21,6 +21,14 @@ pub struct PyQuaternion {
 
 #[pymethods]
 impl PyQuaternion {
+    /// Constructs the identity quaternion
+    #[staticmethod]
+    fn identity() -> Self {
+        Self {
+            rot: UnitQuaternion::identity(),
+        }
+    }
+
     /// Constructs the quaternion `w + x*i + y*j + z*k` in `(w, x, y, z)` and normalize it to unit-quaternion
     #[staticmethod]
     fn from_wxyz(w: Scalar, x: Scalar, y: Scalar, z: Scalar) -> PyResult<Self> {
@@ -50,6 +58,10 @@ impl PyQuaternion {
             UnitQuaternion::from_axis_angle(&axis, angle)
         };
         Self { rot }
+    }
+
+    fn copy(&self) -> Self {
+        Self { rot: self.rot }
     }
 
     fn __mul__(&self, rhs: &Self) -> Self {
@@ -131,5 +143,15 @@ impl PyQuaternion {
             .transform_vector(&Vector3::new(vec.0, vec.1, vec.2));
 
         Array1::from_vec(vec![rotated.x, rotated.y, rotated.z]).into_pyarray(py)
+    }
+
+    fn slerp(&self, other: Bound<'_, PyQuaternion>, t: Scalar) -> Self {
+        let rot = self.rot.slerp(&other.borrow().rot, t);
+        Self { rot }
+    }
+
+    fn __str__(&self) -> String {
+        let (w, x, y, z) = self.wxyz();
+        format!("{:.3} {:+.3}i {:+.3}j {:+.3}k", w, x, y, z)
     }
 }
