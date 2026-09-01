@@ -11,6 +11,6 @@ pub mod relation {
     #[pymodule_export]
     use super::{
         handle::{RelationBitsetIterator, RelationHandle, RelationVecIterator},
-        registry::{FlagHandle, RelationRegistry},
+        registry::{CutType, FlagHandle, RelationRegistry},
     };
 }

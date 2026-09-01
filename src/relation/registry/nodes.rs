@@ -1,4 +1,5 @@
 use std::cell::{Ref, RefCell, RefMut};
+use std::collections::HashMap;
 use std::fmt::Write;
 use std::rc::Rc;
 
@@ -14,22 +15,27 @@ use super::recursive_cache::RecursiveCache;
 use super::{NodeIndex, RelationRegistry};
 
 pub(super) struct Nodes {
-    chunks: Vec<Chunk>,
+    /// Chunks with the `start_id`
+    chunks: Vec<(usize, Chunk)>,
     next_id: usize,
 }
 
-struct Chunk {
-    start_id: usize,
-    nodes: Vec<Node>,
+enum Chunk {
+    Continous(Vec<Node>),
+    Discrete(HashMap<usize, Node>),
+}
+
+#[pyclass(module = "janim_backend.relation", frozen, from_py_object)]
+#[derive(Clone, Copy)]
+pub enum CutType {
+    Continous,
+    Discrete,
 }
 
 impl Nodes {
     pub fn new() -> Self {
         Self {
-            chunks: vec![Chunk {
-                start_id: 0,
-                nodes: Vec::new(),
-            }],
+            chunks: vec![(0, Chunk::Continous(Vec::new()))],
             next_id: 0,
         }
     }
@@ -42,28 +48,69 @@ impl Nodes {
         self.next_id += 1;
 
         let (node, ret) = f(id)?;
-        self.chunks.last_mut().unwrap().nodes.push(node);
+
+        match &mut self.chunks.last_mut().unwrap().1 {
+            Chunk::Continous(nodes) => {
+                nodes.push(node);
+            }
+            Chunk::Discrete(nodes) => {
+                nodes.insert(id, node);
+            }
+        }
 
         Ok(ret)
     }
 
     /// Cut a new chunk.
-    pub fn cut(&mut self) {
-        if self.chunks.last().unwrap().nodes.is_empty() {
+    pub fn cut(&mut self, cut_result: CutType) {
+        let last = self.chunks.last_mut().unwrap();
+
+        let is_empty = match &last.1 {
+            Chunk::Continous(nodes) => nodes.is_empty(),
+            Chunk::Discrete(nodes) => nodes.is_empty(),
+        };
+
+        if is_empty {
+            let matches = matches!(
+                (&last.1, &cut_result),
+                (Chunk::Continous(_), CutType::Continous) | (Chunk::Discrete(_), CutType::Discrete)
+            );
+            if matches {
+                return;
+            }
+
+            last.1 = Nodes::new_chunk(cut_result);
             return;
         }
-        self.chunks.push(Chunk {
-            start_id: self.next_id,
-            nodes: Vec::new(),
-        });
+
+        let chunk = Nodes::new_chunk(cut_result);
+        self.chunks.push((self.next_id, chunk));
     }
 
-    /// Remove chunks whose nodes are all dead.
-    pub fn cleanup(&mut self, py: Python<'_>) {
-        let last = self.chunks.pop().unwrap();
+    /// Create a new chunk based on the [CutResult]
+    fn new_chunk(cut_result: CutType) -> Chunk {
+        match cut_result {
+            CutType::Continous => Chunk::Continous(Vec::new()),
+            CutType::Discrete => Chunk::Discrete(HashMap::new()),
+        }
+    }
 
-        self.chunks
-            .retain(|chunk| chunk.nodes.iter().any(|node| node.alive(py)));
+    /// Remove dead nodes and chunks whose nodes are all dead.
+    pub fn cleanup(&mut self, py: Python<'_>) {
+        let cleanup_chunk = |chunk: &mut Chunk| -> bool {
+            match chunk {
+                Chunk::Continous(nodes) => nodes.iter().any(|node| node.alive(py)),
+                Chunk::Discrete(nodes) => {
+                    nodes.retain(|_, node| node.alive(py));
+                    !nodes.is_empty()
+                }
+            }
+        };
+
+        let mut last = self.chunks.pop().unwrap();
+
+        self.chunks.retain_mut(|(_, chunk)| cleanup_chunk(chunk));
+        cleanup_chunk(&mut last.1);
 
         self.chunks.push(last);
     }
@@ -71,22 +118,31 @@ impl Nodes {
     #[inline]
     pub fn node(&self, index: usize) -> &Node {
         let chunk_index = self.find_chunk(index);
-        let chunk = &self.chunks[chunk_index];
+        let (start_id, chunk) = &self.chunks[chunk_index];
 
-        &chunk.nodes[index - chunk.start_id]
+        match chunk {
+            Chunk::Continous(nodes) => &nodes[index - *start_id],
+            Chunk::Discrete(nodes) => nodes.get(&index).unwrap(),
+        }
     }
 
     #[inline]
     pub fn node_mut(&mut self, index: usize) -> &mut Node {
         let chunk_index = self.find_chunk(index);
-        let chunk = &mut self.chunks[chunk_index];
+        let (start_id, chunk) = &mut self.chunks[chunk_index];
 
-        &mut chunk.nodes[index - chunk.start_id]
+        match chunk {
+            Chunk::Continous(nodes) => &mut nodes[index - *start_id],
+            Chunk::Discrete(nodes) => nodes.get_mut(&index).unwrap(),
+        }
     }
 
     #[inline]
     fn find_chunk(&self, index: usize) -> usize {
-        let chunk_index = self.chunks.partition_point(|chunk| chunk.start_id <= index);
+        let chunk_index = self
+            .chunks
+            .partition_point(|(start_id, _)| *start_id <= index);
+
         chunk_index - 1
     }
 
@@ -97,30 +153,27 @@ impl Nodes {
         let mut nodes_len = 0;
         let mut alive_count = 0;
 
-        let mut range_start = None;
-        let mut range_end = 0;
+        for (start_id, chunk) in &self.chunks {
+            match chunk {
+                Chunk::Continous(nodes) => {
+                    if !nodes.is_empty() {
+                        let end_id = start_id + nodes.len();
 
-        for chunk in &self.chunks {
-            let start = chunk.start_id;
-            let end = start + chunk.nodes.len();
+                        write!(s, " vec:[{},{})", start_id, end_id).unwrap();
 
-            if range_start.is_none() {
-                range_start = Some(start);
-                range_end = end;
-            } else if start == range_end {
-                range_end = end;
-            } else {
-                write!(s, " [{}, {})", range_start.unwrap(), range_end).unwrap();
-                range_start = Some(start);
-                range_end = end;
+                        nodes_len += nodes.len();
+                        alive_count += nodes.iter().filter(|node| node.alive(py)).count();
+                    }
+                }
+                Chunk::Discrete(nodes) => {
+                    if !nodes.is_empty() {
+                        write!(s, " map:{{{}}}", nodes.len()).unwrap();
+
+                        nodes_len += nodes.len();
+                        alive_count += nodes.values().filter(|node| node.alive(py)).count();
+                    }
+                }
             }
-
-            nodes_len += chunk.nodes.len();
-            alive_count += chunk.nodes.iter().filter(|node| node.alive(py)).count();
-        }
-
-        if let Some(start) = range_start {
-            write!(s, " [{}, {})", start, range_end).unwrap();
         }
 
         writeln!(s).unwrap();

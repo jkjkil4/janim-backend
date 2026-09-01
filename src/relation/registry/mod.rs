@@ -8,7 +8,7 @@ use std::{cell::RefCell, collections::HashMap};
 use pyo3::prelude::*;
 
 pub use flags::FlagHandle;
-pub use nodes::ResolveResult;
+pub use nodes::{CutType, ResolveResult};
 
 use super::bitset::OffsetBitSet;
 use super::handle::RelationHandle;
@@ -80,8 +80,8 @@ impl RelationRegistry {
 
     /// Cut a new chunk for the nodes registry,
     /// allowing `cleanup` to remove preceding dead chunks.
-    fn cut_nodes_chunk(&self) {
-        self.nodes.borrow_mut().cut();
+    fn cut_nodes_chunk(&self, cut_result: CutType) {
+        self.nodes.borrow_mut().cut(cut_result);
     }
 
     /// Clean the leading invalid-nodes and the bitsets
