@@ -7,7 +7,7 @@ use pyo3::prelude::*;
 use pyo3::types::PyWeakrefReference;
 
 use crate::exception::RelationError;
-use crate::utils::upgrade_ref;
+use crate::utils::{format_bytes, upgrade_ref};
 
 use super::OffsetBitSet;
 use super::RelationHandle;
@@ -146,6 +146,11 @@ impl Nodes {
         chunk_index - 1
     }
 
+    /// Get the `start_id` of the first chunk
+    pub fn get_start(&self) -> usize {
+        self.chunks.first().unwrap().0
+    }
+
     /// Get statistics string, used for debugging in Python
     pub(super) fn printable_statistics(&self, py: Python<'_>, s: &mut String) {
         write!(s, "Recorded range:").unwrap();
@@ -175,9 +180,18 @@ impl Nodes {
                 }
             }
         }
+        if nodes_len == 0 {
+            write!(s, " (Empty)").unwrap();
+        }
 
         writeln!(s).unwrap();
-        writeln!(s, "- Length: {}", nodes_len).unwrap();
+        writeln!(
+            s,
+            "- Length: {} @ {} for Node inline storage",
+            nodes_len,
+            format_bytes(std::mem::size_of::<Node>() * nodes_len)
+        )
+        .unwrap();
         writeln!(s, "- Alive nodes: {}", alive_count).unwrap();
     }
 }

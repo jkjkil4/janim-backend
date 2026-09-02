@@ -216,55 +216,39 @@ impl OffsetBitSet {
         }
     }
 
-    /// Trims the bitset to the given bit-id range `[start, end)`.
+    /// Trims the bitset from the given bit-id onwards.
     ///
-    /// Bits outside the range are removed. The internal storage is also adjusted
-    /// so that its range only covers the specified interval.
+    /// Bits before `start` are removed. The internal storage is also adjusted
+    /// so that its range starts at the specified bit.
     ///
-    /// If `start >= end`, the bitset becomes empty.
-    pub fn trim(&mut self, start: usize, end: usize) {
-        if self.bits.is_empty() || start >= end {
-            self.bits.clear();
-            self.offset = 0;
+    /// If `start` is beyond the bitset's range, the bitset becomes empty.
+    pub fn trim_from(&mut self, start: usize) {
+        if self.bits.is_empty() {
             return;
         }
 
         let start_word = start >> 6;
-        let end_word = (end - 1) >> 6;
-
         let self_end = self.offset + self.bits.len();
 
-        // No overlap with [start_word, end_word].
-        if end_word < self.offset || start_word >= self_end {
+        // Nothing remains after `start`.
+        if start_word >= self_end {
             self.bits.clear();
             self.offset = 0;
             return;
         }
 
+        // Keep words from `start_word` onwards.
         let new_offset = self.offset.max(start_word);
-        let new_end = self_end.min(end_word + 1);
-
         let begin = new_offset - self.offset;
-        let len = new_end - new_offset;
 
-        // Keep only the overlapping words.
-        self.bits = self.bits[begin..begin + len].to_vec();
+        self.bits = self.bits[begin..].to_vec();
         self.offset = new_offset;
 
-        // Clear bits before `start`.
+        // Clear bits before `start` in the first word.
         if start_word == self.offset {
             let bit = start & 63;
             if bit != 0 {
                 self.bits[0] &= u64::MAX << bit;
-            }
-        }
-
-        // Clear bits at or after `end`.
-        if end_word == self.offset + self.bits.len() - 1 {
-            let bit = end & 63;
-            if bit != 0 {
-                let last = self.bits.len() - 1;
-                self.bits[last] &= (1u64 << bit) - 1;
             }
         }
     }

@@ -10,6 +10,8 @@ use pyo3::prelude::*;
 pub use flags::FlagHandle;
 pub use nodes::{CutType, ResolveResult};
 
+use crate::utils::format_bytes;
+
 use super::bitset::OffsetBitSet;
 use super::handle::RelationHandle;
 use nodes::{Node, Nodes};
@@ -86,13 +88,15 @@ impl RelationRegistry {
 
     /// Clean the leading invalid-nodes and the bitsets
     fn cleanup(&mut self, py: Python<'_>) {
+        self.nodes.borrow_mut().cleanup(py);
+        let nodes_start = self.nodes.borrow().get_start();
+
         // Since `OffsetBitset` is small enough,
         // we don't plan to apply the same chunking optimization used by `Nodes` to `computed_flags`.
         for set in &mut self.computed_flags.borrow_mut().values_mut() {
+            set.trim_from(nodes_start);
             set.cleanup();
         }
-
-        self.nodes.borrow_mut().cleanup(py);
     }
 
     /// Create a `FlagHandle`
@@ -149,14 +153,9 @@ impl RelationRegistry {
             let (range, appendix) = if start == end {
                 (String::from("word-range: (Empty)"), String::default())
             } else {
-                let bytes = (end - start) * 8;
                 (
                     format!("word-range: [{}, {})", start, end),
-                    if bytes < 1024 {
-                        format!("@ {} Bytes", bytes)
-                    } else {
-                        format!("@ {:.1} KB", (bytes as f64) / 1024.0)
-                    },
+                    format!("@ {}", format_bytes((end - start) * 8)), // u64 = 8 bytes
                 )
             };
 
