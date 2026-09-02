@@ -5,6 +5,7 @@ build-backend = "maturin"
 [project]
 name = "janim-backend"
 readme = "README.md"
+description = "Provides the Rust backend for JAnim"
 requires-python = ">=3.12"
 classifiers = [
     "Programming Language :: Rust",
@@ -12,3 +13,11 @@ classifiers = [
     "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dynamic = ["version"]
+dependencies = [
+    "numpy>=1.24.4",
+]
+
+[dependency-groups]
+dev = [
+    "maturin>=1.14.1",
+]

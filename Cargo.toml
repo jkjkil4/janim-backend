@@ -2,7 +2,6 @@
 name = "janim-backend"
 version = "5.0.3"
 edition = "2024"
-description = "Provides the Rust backend for JAnim"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [lib]
