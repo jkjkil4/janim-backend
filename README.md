@@ -13,3 +13,5 @@ This package provides the Rust backend for [JAnim](https://github.com/jkjkil4/JA
 - `src/compute/` provides some accelerated computations implemented in Rust
 
 - `src/math/` provides `Quaternion` class
+
+- `src/ffi/` provides `Gl`, a minimal native OpenGL binding used by JAnim in place of `PyOpenGL`.
