@@ -1,4 +1,5 @@
 use std::ffi::{CStr, c_char, c_void};
+use std::sync::OnceLock;
 
 use gl33::{GLenum, GlFns};
 
@@ -18,20 +19,26 @@ fn error_name(error: u32) -> &'static str {
     }
 }
 
-#[pyclass(module = "janim_backend.ffi", unsendable)]
-pub struct Gl {
-    gl: GlFns,
-}
+#[pyclass(module = "janim_backend.ffi", name = "gl", unsendable)]
+pub struct Gl;
+
+static GL: OnceLock<GlFns> = OnceLock::new();
 
 impl Gl {
+    #[inline]
+    fn get_gl() -> PyResult<&'static GlFns> {
+        GL.get()
+            .ok_or_else(|| PyRuntimeError::new_err("OpenGL is not loaded; call `gl.load()` first"))
+    }
+
     /// Check the OpenGL error state after a call.
     ///
     /// OpenGL errors are sticky, so this deliberately checks only the state
     /// produced by the preceding operation. The caller should not make other
     /// GL calls between the operation and this function.
     #[inline]
-    fn check_error(&self, function: &'static str) -> PyResult<()> {
-        let error = unsafe { self.gl.GetError() };
+    fn check_error(function: &'static str) -> PyResult<()> {
+        let error = unsafe { Self::get_gl()?.GetError() };
         let error_code = error.0;
 
         if error_code != Gl::GL_NO_ERROR {
@@ -100,16 +107,10 @@ impl Gl {
     #[classattr]
     const GL_UNSIGNED_BYTE: u32 = gl33::GL_UNSIGNED_BYTE.0;
 
-    /// Load OpenGL through a Python-side get_proc_address callable.
-    ///
-    /// The callable must have the form:
-    ///
-    ///     get_proc_address(name: str) -> int
-    ///
-    /// and return the address of the corresponding OpenGL function.
+    /// Load OpenGL native functions.
     #[staticmethod]
-    fn load(py: Python<'_>, get_proc_address: Py<PyAny>) -> PyResult<Self> {
-        let get_proc_address = get_proc_address.bind(py);
+    fn load() -> PyResult<()> {
+        gl_loader::init_gl();
 
         let loader = |name: *const u8| -> *const c_void {
             let name = unsafe { CStr::from_ptr(name as *const c_char) };
@@ -119,16 +120,7 @@ impl Gl {
                 Err(_) => return std::ptr::null(),
             };
 
-            let result = match get_proc_address.call1((name,)) {
-                Ok(result) => result,
-                Err(_) => return std::ptr::null(),
-            };
-
-            let address: usize = match result.extract() {
-                Ok(address) => address,
-                Err(_) => return std::ptr::null(),
-            };
-
+            let address = gl_loader::get_proc_address(name);
             address as *const c_void
         };
 
@@ -136,7 +128,14 @@ impl Gl {
             PyRuntimeError::new_err(format!("failed to load OpenGL function: {name}"))
         })?;
 
-        Ok(Self { gl })
+        GL.set(gl)
+            .map_err(|_| PyRuntimeError::new_err("OpenGL has already been loaded"))
+    }
+
+    /// Return whether OpenGL has been loaded.
+    #[staticmethod]
+    fn is_loaded() -> bool {
+        GL.get().is_some()
     }
 
     // -----------------------------------------------------------------------
@@ -145,44 +144,47 @@ impl Gl {
 
     /// glGenTextures
     #[pyo3(name = "glGenTextures")]
-    fn gen_textures(&self, n: usize) -> PyResult<Vec<u32>> {
+    #[staticmethod]
+    fn gen_textures(n: usize) -> PyResult<Vec<u32>> {
         let n = i32::try_from(n).expect("number of textures is too large");
         let mut textures = vec![0u32; n as usize];
 
         unsafe {
-            self.gl.GenTextures(n, textures.as_mut_ptr());
+            Self::get_gl()?.GenTextures(n, textures.as_mut_ptr());
         }
-        self.check_error("glGenTextures")?;
+        Self::check_error("glGenTextures")?;
 
         Ok(textures)
     }
 
     /// glBindTexture
     #[pyo3(name = "glBindTexture")]
-    fn bind_texture(&self, target: u32, texture: u32) -> PyResult<()> {
+    #[staticmethod]
+    fn bind_texture(target: u32, texture: u32) -> PyResult<()> {
         unsafe {
-            self.gl.BindTexture(GLenum(target), texture);
+            Self::get_gl()?.BindTexture(GLenum(target), texture);
         }
-        self.check_error("glBindTexture")
+        Self::check_error("glBindTexture")
     }
 
     /// glTexBuffer
     #[pyo3(name = "glTexBuffer")]
-    fn tex_buffer(&self, target: u32, internalformat: u32, buffer: u32) -> PyResult<()> {
+    #[staticmethod]
+    fn tex_buffer(target: u32, internalformat: u32, buffer: u32) -> PyResult<()> {
         unsafe {
-            self.gl
-                .TexBuffer(GLenum(target), GLenum(internalformat), buffer);
+            Self::get_gl()?.TexBuffer(GLenum(target), GLenum(internalformat), buffer);
         }
-        self.check_error("glTexBuffer")
+        Self::check_error("glTexBuffer")
     }
 
     /// glActiveTexture
     #[pyo3(name = "glActiveTexture")]
-    fn active_texture(&self, texture: u32) -> PyResult<()> {
+    #[staticmethod]
+    fn active_texture(texture: u32) -> PyResult<()> {
         unsafe {
-            self.gl.ActiveTexture(GLenum(texture));
+            Self::get_gl()?.ActiveTexture(GLenum(texture));
         }
-        self.check_error("glActiveTexture")
+        Self::check_error("glActiveTexture")
     }
 
     // -----------------------------------------------------------------------
@@ -191,38 +193,35 @@ impl Gl {
 
     /// glGenBuffers
     #[pyo3(name = "glGenBuffers")]
-    fn gen_buffers(&self, n: usize) -> PyResult<Vec<u32>> {
+    #[staticmethod]
+    fn gen_buffers(n: usize) -> PyResult<Vec<u32>> {
         let n = i32::try_from(n).expect("number of buffers is too large");
         let mut buffers = vec![0u32; n as usize];
 
         unsafe {
-            self.gl.GenBuffers(n, buffers.as_mut_ptr());
+            Self::get_gl()?.GenBuffers(n, buffers.as_mut_ptr());
         }
-        self.check_error("glGenBuffers")?;
+        Self::check_error("glGenBuffers")?;
 
         Ok(buffers)
     }
 
     /// glBindBuffer
     #[pyo3(name = "glBindBuffer")]
-    fn bind_buffer(&self, target: u32, buffer: u32) -> PyResult<()> {
+    #[staticmethod]
+    fn bind_buffer(target: u32, buffer: u32) -> PyResult<()> {
         unsafe {
-            self.gl.BindBuffer(GLenum(target), buffer);
+            Self::get_gl()?.BindBuffer(GLenum(target), buffer);
         }
-        self.check_error("glBindBuffer")
+        Self::check_error("glBindBuffer")
     }
 
     /// glBufferData
     ///
     /// `data=None` allocates uninitialized GPU storage.
     #[pyo3(name = "glBufferData")]
-    fn buffer_data(
-        &self,
-        target: u32,
-        size: isize,
-        data: Option<Py<PyAny>>,
-        usage: u32,
-    ) -> PyResult<()> {
+    #[staticmethod]
+    fn buffer_data(target: u32, size: isize, data: Option<Py<PyAny>>, usage: u32) -> PyResult<()> {
         let ptr = match data {
             None => std::ptr::null(),
             Some(_) => {
@@ -231,23 +230,24 @@ impl Gl {
         };
 
         unsafe {
-            self.gl.BufferData(GLenum(target), size, ptr, GLenum(usage));
+            Self::get_gl()?.BufferData(GLenum(target), size, ptr, GLenum(usage));
         }
-        self.check_error("glBufferData")
+        Self::check_error("glBufferData")
     }
 
     /// glDeleteBuffers
     #[pyo3(name = "glDeleteBuffers")]
-    fn delete_buffers(&self, buffers: Vec<u32>) -> PyResult<()> {
+    #[staticmethod]
+    fn delete_buffers(buffers: Vec<u32>) -> PyResult<()> {
         if buffers.is_empty() {
             return Ok(());
         }
         let n = i32::try_from(buffers.len()).expect("too many buffers");
 
         unsafe {
-            self.gl.DeleteBuffers(n, buffers.as_ptr());
+            Self::get_gl()?.DeleteBuffers(n, buffers.as_ptr());
         }
-        self.check_error("glDeleteBuffers")
+        Self::check_error("glDeleteBuffers")
     }
 
     /// glMapBuffer
@@ -257,9 +257,10 @@ impl Gl {
     /// The caller must call glUnmapBuffer before the buffer is rebound or
     /// otherwise invalidated.
     #[pyo3(name = "glMapBuffer")]
-    fn map_buffer(&self, target: u32, access: u32) -> PyResult<usize> {
-        let ptr = unsafe { self.gl.MapBuffer(GLenum(target), GLenum(access)) };
-        self.check_error("glMapBuffer")?;
+    #[staticmethod]
+    fn map_buffer(target: u32, access: u32) -> PyResult<usize> {
+        let ptr = unsafe { Self::get_gl()?.MapBuffer(GLenum(target), GLenum(access)) };
+        Self::check_error("glMapBuffer")?;
 
         if ptr.is_null() {
             return Err(PyRuntimeError::new_err("`glMapBuffer` returned `NULL`"));
@@ -271,9 +272,10 @@ impl Gl {
     ///
     /// Returns `False` if the contents of the mapped buffer became corrupt.
     #[pyo3(name = "glUnmapBuffer")]
-    fn unmap_buffer(&self, target: u32) -> PyResult<bool> {
-        let result = unsafe { self.gl.UnmapBuffer(GLenum(target)) };
-        self.check_error("glUnmapBuffer")?;
+    #[staticmethod]
+    fn unmap_buffer(target: u32) -> PyResult<bool> {
+        let result = unsafe { Self::get_gl()?.UnmapBuffer(GLenum(target)) };
+        Self::check_error("glUnmapBuffer")?;
 
         Ok(result != 0)
     }
@@ -282,8 +284,8 @@ impl Gl {
     ///
     /// Returns a bytes object containing the requested GPU buffer contents.
     #[pyo3(name = "glGetBufferSubData")]
+    #[staticmethod]
     fn get_buffer_sub_data<'py>(
-        &self,
         py: Python<'py>,
         target: u32,
         offset: isize,
@@ -293,14 +295,14 @@ impl Gl {
         let mut data = vec![0u8; size as usize];
 
         unsafe {
-            self.gl.GetBufferSubData(
+            Self::get_gl()?.GetBufferSubData(
                 GLenum(target),
                 offset,
                 size,
                 data.as_mut_ptr() as *mut c_void,
             );
         }
-        self.check_error("glGetBufferSubData")?;
+        Self::check_error("glGetBufferSubData")?;
 
         Ok(PyBytes::new(py, &data))
     }
@@ -311,34 +313,35 @@ impl Gl {
 
     /// glUseProgram
     #[pyo3(name = "glUseProgram")]
-    fn use_program(&self, program: u32) -> PyResult<()> {
-        self.gl.UseProgram(program);
-        self.check_error("glUseProgram")
+    #[staticmethod]
+    fn use_program(program: u32) -> PyResult<()> {
+        Self::get_gl()?.UseProgram(program);
+        Self::check_error("glUseProgram")
     }
 
     /// glGetUniformLocation
     #[pyo3(name = "glGetUniformLocation")]
-    fn get_uniform_location(&self, program: u32, name: &str) -> PyResult<i32> {
+    #[staticmethod]
+    fn get_uniform_location(program: u32, name: &str) -> PyResult<i32> {
         let name = std::ffi::CString::new(name)
             .map_err(|_| PyRuntimeError::new_err("uniform name contains `NUL` byte"))?;
 
-        let location = unsafe {
-            self.gl
-                .GetUniformLocation(program, name.as_ptr() as *const u8)
-        };
+        let location =
+            unsafe { Self::get_gl()?.GetUniformLocation(program, name.as_ptr() as *const u8) };
         // -1 is a valid return value when the uniform is not active.
-        self.check_error("glGetUniformLocation")?;
+        Self::check_error("glGetUniformLocation")?;
 
         Ok(location)
     }
 
     /// glUniform1i
     #[pyo3(name = "glUniform1i")]
-    fn uniform_1i(&self, location: i32, value: i32) -> PyResult<()> {
+    #[staticmethod]
+    fn uniform_1i(location: i32, value: i32) -> PyResult<()> {
         unsafe {
-            self.gl.Uniform1i(location, value);
+            Self::get_gl()?.Uniform1i(location, value);
         }
-        self.check_error("glUniform1i")
+        Self::check_error("glUniform1i")
     }
 
     // -----------------------------------------------------------------------
@@ -355,8 +358,8 @@ impl Gl {
     /// For the PBO use case in JAnim, pass `0`.
     #[pyo3(name = "glReadPixels")]
     #[allow(clippy::too_many_arguments)]
+    #[staticmethod]
     fn read_pixels(
-        &self,
         x: i32,
         y: i32,
         width: i32,
@@ -366,7 +369,7 @@ impl Gl {
         pixels: usize,
     ) -> PyResult<()> {
         unsafe {
-            self.gl.ReadPixels(
+            Self::get_gl()?.ReadPixels(
                 x,
                 y,
                 width,
@@ -376,6 +379,6 @@ impl Gl {
                 pixels as *mut c_void,
             );
         }
-        self.check_error("glReadPixels")
+        Self::check_error("glReadPixels")
     }
 }

@@ -22,6 +22,7 @@ bytemuck = "1.25.2"
 ndarray = "0.17.2"
 nalgebra = "0.35.0"
 gl33 = "0.2.1"
+gl_loader = "0.1.2"
 
 [package.metadata.i18n]
 available-locales = ["en", "zh_CN"]
