@@ -21,6 +21,7 @@ anyhow = "1.0.104"
 bytemuck = "1.25.2"
 ndarray = "0.17.2"
 nalgebra = "0.35.0"
+gl33 = "0.2.1"
 
 [package.metadata.i18n]
 available-locales = ["en", "zh_CN"]
