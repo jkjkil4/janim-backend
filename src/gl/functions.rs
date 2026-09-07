@@ -35,7 +35,7 @@ fn error_name(error: u32) -> &'static str {
 /// produced by the preceding operation. The caller should not make other
 /// GL calls between the operation and this function.
 #[inline]
-fn check_error(function: &'static str) -> PyResult<()> {
+pub(super) fn check_error(function: &'static str) -> PyResult<()> {
     let error = unsafe { get_gl()?.GetError() };
     let error_code = error.0;
 
@@ -277,6 +277,99 @@ pub fn uniform_1f(location: i32, value: f32) -> PyResult<()> {
         get_gl()?.Uniform1f(location, value);
     }
     check_error("glUniform1f")
+}
+
+#[pyfunction(name = "glUniform2f")]
+pub fn uniform_2f(location: i32, v0: f32, v1: f32) -> PyResult<()> {
+    unsafe {
+        get_gl()?.Uniform2f(location, v0, v1);
+    }
+    check_error("glUniform2f")
+}
+
+#[pyfunction(name = "glUniformBytes")]
+pub fn uniform_bytes(location: i32, value: Bound<'_, PyBytes>, gl_type: u32) -> PyResult<()> {
+    let gl = get_gl()?;
+    let bytes = value.as_bytes();
+    let ptr = bytes.as_ptr();
+
+    unsafe {
+        match gl_type {
+            gl::GL_BOOL | gl::GL_INT => {
+                check_bytes_size(bytes, 4)?;
+                gl.Uniform1iv(location, 1, ptr as *const i32);
+            }
+            gl::GL_BOOL_VEC2 | gl::GL_INT_VEC2 => {
+                check_bytes_size(bytes, 8)?;
+                gl.Uniform2iv(location, 1, ptr as *const i32);
+            }
+            gl::GL_BOOL_VEC3 | gl::GL_INT_VEC3 => {
+                check_bytes_size(bytes, 12)?;
+                gl.Uniform3iv(location, 1, ptr as *const i32);
+            }
+            gl::GL_BOOL_VEC4 | gl::GL_INT_VEC4 => {
+                check_bytes_size(bytes, 16)?;
+                gl.Uniform4iv(location, 1, ptr as *const i32);
+            }
+            gl::GL_UNSIGNED_INT => {
+                check_bytes_size(bytes, 4)?;
+                gl.Uniform1uiv(location, 1, ptr as *const u32);
+            }
+            gl::GL_UNSIGNED_INT_VEC2 => {
+                check_bytes_size(bytes, 8)?;
+                gl.Uniform2uiv(location, 1, ptr as *const u32);
+            }
+            gl::GL_UNSIGNED_INT_VEC3 => {
+                check_bytes_size(bytes, 12)?;
+                gl.Uniform3uiv(location, 1, ptr as *const u32);
+            }
+            gl::GL_UNSIGNED_INT_VEC4 => {
+                check_bytes_size(bytes, 16)?;
+                gl.Uniform4uiv(location, 1, ptr as *const u32);
+            }
+            gl::GL_FLOAT => {
+                check_bytes_size(bytes, 4)?;
+                gl.Uniform1fv(location, 1, ptr as *const f32);
+            }
+            gl::GL_FLOAT_VEC2 => {
+                check_bytes_size(bytes, 8)?;
+                gl.Uniform2fv(location, 1, ptr as *const f32);
+            }
+            gl::GL_FLOAT_VEC3 => {
+                check_bytes_size(bytes, 12)?;
+                gl.Uniform3fv(location, 1, ptr as *const f32);
+            }
+            gl::GL_FLOAT_VEC4 => {
+                check_bytes_size(bytes, 16)?;
+                gl.Uniform4fv(location, 1, ptr as *const f32);
+            }
+            gl::GL_FLOAT_MAT2 => {
+                check_bytes_size(bytes, 16)?;
+                gl.UniformMatrix2fv(location, 1, 0, ptr as *const f32);
+            }
+            gl::GL_FLOAT_MAT3 => {
+                check_bytes_size(bytes, 36)?;
+                gl.UniformMatrix3fv(location, 1, 0, ptr as *const f32);
+            }
+            gl::GL_FLOAT_MAT4 => {
+                check_bytes_size(bytes, 64)?;
+                gl.UniformMatrix4fv(location, 1, 0, ptr as *const f32);
+            }
+            _ => {
+                return Err(PyRuntimeError::new_err(format!(
+                    "unsupported uniform type: 0x{gl_type:04X}"
+                )));
+            }
+        }
+    }
+    check_error("glUniformBytes")
+}
+
+fn check_bytes_size(bytes: &[u8], expected_size: usize) -> PyResult<()> {
+    if bytes.len() != expected_size {
+        return Err(PyRuntimeError::new_err("invalid uniform size"));
+    }
+    Ok(())
 }
 
 // -----------------------------------------------------------------------

@@ -31,7 +31,7 @@ mod janim_backend {
         let patcher = crate::SubModulePatcher::new(m, "janim_backend")?;
         patcher.patch("compute")?;
         patcher.patch("exception")?;
-        patcher.patch("ffi")?;
+        patcher.patch("gl")?;
         patcher.patch("math")?;
         patcher.patch("relation")?;
         Ok(())
