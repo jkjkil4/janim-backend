@@ -11,18 +11,17 @@ crate-type = ["cdylib"]
 [dependencies]
 pyo3 = { version = "0.29.0", features = ["experimental-inspect"] }
 numpy = "0.29.0"
+ndarray = "0.17.2"
+# gl
+gl33 = "0.2.1"
+gl_loader = "0.1.2"
 # i18n
 rust-i18n = "4.2.1"
 serde_yaml = "0.9.34"
-# macros
-pyresolver = { path = "./macros/pyresolver" }
 # others
 anyhow = "1.0.104"
 bytemuck = "1.25.2"
-ndarray = "0.17.2"
 nalgebra = "0.35.0"
-gl33 = "0.2.1"
-gl_loader = "0.1.2"
 
 [package.metadata.i18n]
 available-locales = ["en", "zh_CN"]
