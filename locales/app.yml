@@ -8,3 +8,6 @@ Cannot modify children while a modification is already in progress:
 '`RelationHandle` lifetime mismatch':
   en: '`RelationHandle` lifetime mismatch'
   zh_CN: '`RelationHandle` 生命周期不匹配'
+Zero quaternion is invalid.:
+  en: 'Zero quaternion is invalid.'
+  zh_CN: 零四元数无效
