@@ -1,6 +1,6 @@
 mod compute;
 mod exception;
-mod ffi;
+mod gl;
 mod math;
 mod relation;
 
@@ -19,7 +19,7 @@ mod janim_backend {
     use pyo3::prelude::*;
 
     #[pymodule_export]
-    use super::{compute::compute, exception::exception, ffi::ffi, math::math, relation::relation};
+    use super::{compute::compute, exception::exception, gl::gl, math::math, relation::relation};
 
     #[pyfunction]
     pub fn set_locale(locale: &str) {
