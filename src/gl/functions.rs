@@ -84,7 +84,6 @@ pub fn is_loaded() -> bool {
 // Texture
 // -----------------------------------------------------------------------
 
-/// glGenTextures
 #[pyfunction(name = "glGenTextures")]
 pub fn gen_textures(n: usize) -> PyResult<Vec<u32>> {
     let n = i32::try_from(n).expect("number of textures is too large");
@@ -98,7 +97,6 @@ pub fn gen_textures(n: usize) -> PyResult<Vec<u32>> {
     Ok(textures)
 }
 
-/// glBindTexture
 #[pyfunction(name = "glBindTexture")]
 pub fn bind_texture(target: u32, texture: u32) -> PyResult<()> {
     unsafe {
@@ -107,7 +105,6 @@ pub fn bind_texture(target: u32, texture: u32) -> PyResult<()> {
     check_error("glBindTexture")
 }
 
-/// glTexBuffer
 #[pyfunction(name = "glTexBuffer")]
 pub fn tex_buffer(target: u32, internalformat: u32, buffer: u32) -> PyResult<()> {
     unsafe {
@@ -116,7 +113,6 @@ pub fn tex_buffer(target: u32, internalformat: u32, buffer: u32) -> PyResult<()>
     check_error("glTexBuffer")
 }
 
-/// glActiveTexture
 #[pyfunction(name = "glActiveTexture")]
 pub fn active_texture(texture: u32) -> PyResult<()> {
     unsafe {
@@ -129,7 +125,6 @@ pub fn active_texture(texture: u32) -> PyResult<()> {
 // Buffer
 // -----------------------------------------------------------------------
 
-/// glGenBuffers
 #[pyfunction(name = "glGenBuffers")]
 pub fn gen_buffers(n: usize) -> PyResult<Vec<u32>> {
     let n = i32::try_from(n).expect("number of buffers is too large");
@@ -143,7 +138,6 @@ pub fn gen_buffers(n: usize) -> PyResult<Vec<u32>> {
     Ok(buffers)
 }
 
-/// glBindBuffer
 #[pyfunction(name = "glBindBuffer")]
 pub fn bind_buffer(target: u32, buffer: u32) -> PyResult<()> {
     unsafe {
@@ -152,8 +146,6 @@ pub fn bind_buffer(target: u32, buffer: u32) -> PyResult<()> {
     check_error("glBindBuffer")
 }
 
-/// glBufferData
-///
 /// `data=None` allocates uninitialized GPU storage.
 #[pyfunction(name = "glBufferData")]
 pub fn buffer_data(target: u32, size: isize, data: Option<Py<PyAny>>, usage: u32) -> PyResult<()> {
@@ -170,7 +162,6 @@ pub fn buffer_data(target: u32, size: isize, data: Option<Py<PyAny>>, usage: u32
     check_error("glBufferData")
 }
 
-/// glDeleteBuffers
 #[pyfunction(name = "glDeleteBuffers")]
 pub fn delete_buffers(buffers: Vec<u32>) -> PyResult<()> {
     if buffers.is_empty() {
@@ -184,8 +175,6 @@ pub fn delete_buffers(buffers: Vec<u32>) -> PyResult<()> {
     check_error("glDeleteBuffers")
 }
 
-/// glMapBuffer
-///
 /// Returns the mapped address as an integer.
 ///
 /// The caller must call glUnmapBuffer before the buffer is rebound or
@@ -201,8 +190,6 @@ pub fn map_buffer(target: u32, access: u32) -> PyResult<usize> {
     Ok(ptr as usize)
 }
 
-/// glUnmapBuffer
-///
 /// Returns `False` if the contents of the mapped buffer became corrupt.
 #[pyfunction(name = "glUnmapBuffer")]
 pub fn unmap_buffer(target: u32) -> PyResult<bool> {
@@ -212,8 +199,6 @@ pub fn unmap_buffer(target: u32) -> PyResult<bool> {
     Ok(result != 0)
 }
 
-/// glGetBufferSubData
-///
 /// Returns a bytes object containing the requested GPU buffer contents.
 #[pyfunction(name = "glGetBufferSubData")]
 pub fn get_buffer_sub_data<'py>(
@@ -242,14 +227,12 @@ pub fn get_buffer_sub_data<'py>(
 // Program / Uniform
 // -----------------------------------------------------------------------
 
-/// glUseProgram
 #[pyfunction(name = "glUseProgram")]
 pub fn use_program(program: u32) -> PyResult<()> {
     get_gl()?.UseProgram(program);
     check_error("glUseProgram")
 }
 
-/// glGetUniformLocation
 #[pyfunction(name = "glGetUniformLocation")]
 pub fn get_uniform_location(program: u32, name: &str) -> PyResult<i32> {
     let name = std::ffi::CString::new(name)
@@ -262,7 +245,6 @@ pub fn get_uniform_location(program: u32, name: &str) -> PyResult<i32> {
     Ok(location)
 }
 
-/// glUniform1i
 #[pyfunction(name = "glUniform1i")]
 pub fn uniform_1i(location: i32, value: i32) -> PyResult<()> {
     unsafe {
@@ -365,6 +347,7 @@ pub fn uniform_bytes(location: i32, value: Bound<'_, PyBytes>, gl_type: u32) -> 
     check_error("glUniformBytes")
 }
 
+#[inline]
 fn check_bytes_size(bytes: &[u8], expected_size: usize) -> PyResult<()> {
     if bytes.len() != expected_size {
         return Err(PyRuntimeError::new_err("invalid uniform size"));
@@ -376,8 +359,6 @@ fn check_bytes_size(bytes: &[u8], expected_size: usize) -> PyResult<()> {
 // Pixel readback
 // -----------------------------------------------------------------------
 
-/// glReadPixels
-///
 /// `pixels` is interpreted exactly like OpenGL:
 ///
 /// - if `GL_PIXEL_PACK_BUFFER` is not bound, it is a host pointer;
