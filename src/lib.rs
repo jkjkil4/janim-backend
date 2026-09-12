@@ -1,3 +1,4 @@
+mod component;
 mod compute;
 mod exception;
 mod gl;
@@ -19,7 +20,10 @@ mod janim_backend {
     use pyo3::prelude::*;
 
     #[pymodule_export]
-    use super::{compute::compute, exception::exception, gl::gl, math::math, relation::relation};
+    use super::{
+        component::component, compute::compute, exception::exception, gl::gl, math::math,
+        relation::relation,
+    };
 
     #[pyfunction]
     pub fn set_locale(locale: &str) {
@@ -29,6 +33,7 @@ mod janim_backend {
     #[pymodule_init]
     fn init(m: &Bound<'_, PyModule>) -> PyResult<()> {
         let patcher = crate::SubModulePatcher::new(m, "janim_backend")?;
+        patcher.patch("component")?;
         patcher.patch("compute")?;
         patcher.patch("exception")?;
         patcher.patch("gl")?;
