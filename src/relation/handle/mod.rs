@@ -1,11 +1,12 @@
 mod iter;
 
+use pyo3::exceptions::PyRuntimeError;
 use pyo3::types::PyList;
 use pyo3::{PyTraverseError, PyVisit};
 use pyo3::{prelude::*, types::PyWeakrefReference};
 
 use crate::exception::BorrowMutError;
-use crate::{exception::LifetimeError, utils::upgrade_ref};
+use crate::utils::upgrade_ref;
 
 use super::registry;
 use registry::{FlagHandle, RelationRegistry};
@@ -50,7 +51,7 @@ impl RelationHandle {
 
     pub(super) fn obj_ref<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         upgrade_ref(py, &self.related_obj)
-            .ok_or_else(|| LifetimeError::new_err(t!("`RelationHandle` lifetime mismatch")))
+            .ok_or_else(|| PyRuntimeError::new_err("`RelationHandle` lifetime mismatch"))
     }
 
     pub(super) fn index_and_ref<'py>(
