@@ -5,7 +5,7 @@ use std::{
 
 use pyo3::{
     IntoPyObjectExt,
-    exceptions::PyRuntimeError,
+    exceptions::{PyRuntimeError, PyTypeError},
     prelude::*,
     types::{PyBool, PyDict, PyFloat, PyInt, PyList, PyNone, PyTuple},
 };
@@ -41,14 +41,28 @@ impl CmptCore {
     ///     cmpt_copy.attrs_inst = self.attrs_inst.copy()
     ///     return cmpt_copy
     /// ```
-    fn _copy_attrs_inst_to(&self, py: Python<'_>, cmpt_copy: Bound<'_, Self>) -> PyResult<()> {
-        // let cls = slf.get_type();
-        // let cmpt_copy: Bound<'py, Self> = cls.clone().call_method1("__new__", (cls,))?.extract()?;
-        // cmpt_copy.borrow_mut().attrs_inst =
-        //     Some(slf.borrow().attrs_inst.as_ref().unwrap().copy(py)?);
-        // Ok(cmpt_copy)
-        cmpt_copy.borrow_mut().attrs_inst = Some(self.attrs_inst.as_ref().unwrap().copy(py)?);
-        Ok(())
+    fn copy<'py>(slf: Bound<'py, Self>, py: Python<'py>) -> PyResult<Bound<'py, Self>> {
+        let obj = unsafe {
+            let ptr = slf.get_type_ptr();
+
+            let tp_new = (*ptr)
+                .tp_new
+                .ok_or_else(|| PyTypeError::new_err("type has no tp_new"))?;
+
+            let obj = tp_new(ptr, PyTuple::empty(py).as_ptr(), std::ptr::null_mut());
+
+            if obj.is_null() {
+                return Err(PyErr::fetch(py));
+            }
+
+            Bound::from_owned_ptr(py, obj)
+        };
+
+        let cmpt_copy: Bound<'_, Self> = obj.extract()?;
+        cmpt_copy.borrow_mut().attrs_inst =
+            Some(slf.borrow().attrs_inst.as_ref().unwrap().copy(py)?);
+
+        Ok(cmpt_copy)
     }
 
     /// Behaves like:
