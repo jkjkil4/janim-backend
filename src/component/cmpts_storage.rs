@@ -8,6 +8,7 @@ use crate::component::attrs_storage::AttrsStorage;
 
 use super::cmpts::{CmptValues, CmptsInstance};
 
+/// The base class of `Item` in Python
 #[pyclass(module = "janim_backend.component", subclass)]
 pub struct CmptsStorage {
     pub(crate) cmpts_inst: Option<CmptsInstance>,
@@ -22,14 +23,21 @@ impl CmptsStorage {
 
 impl CmptsStorage {
     fn iter_common_components<'a>(
+        py: Python<'a>,
         inst1: &'a CmptsInstance,
         inst2: &'a CmptsInstance,
     ) -> impl Iterator<Item = (&'a usize, &'a CmptValues, &'a CmptValues)> + 'a {
-        inst1.cmpts.iter().filter_map(|(id, value)| {
-            inst2
-                .cmpts
-                .get(id)
-                .map(|source_value| (id, value, source_value))
+        inst1.cmpts.iter().filter_map(move |(id, value)| {
+            let field = value.1.borrow(py);
+            let info = field.info.borrow(py);
+
+            inst2.cmpts.values().find_map(move |source_value| {
+                let source_field = source_value.1.borrow(py);
+                let source_info = source_field.info.borrow(py);
+
+                (value.0 == source_value.0 && info.last_attrs_cls.is(&source_info.last_attrs_cls))
+                    .then_some((id, value, source_value))
+            })
         })
     }
 }
@@ -73,7 +81,8 @@ impl CmptsStorage {
         let components = PyList::empty(py);
         let other = other.borrow();
 
-        for (_, values, other_values) in Self::iter_common_components(self.inst(), other.inst()) {
+        for (_, values, other_values) in Self::iter_common_components(py, self.inst(), other.inst())
+        {
             components.append((
                 values.0.as_str(),
                 values.2.clone_ref(py),
@@ -91,7 +100,9 @@ impl CmptsStorage {
 
     fn _become_cmpts_from(&self, py: Python<'_>, source: Bound<'_, Self>) -> PyResult<()> {
         let source = source.borrow();
-        for (_, values, source_values) in Self::iter_common_components(self.inst(), source.inst()) {
+        for (_, values, source_values) in
+            Self::iter_common_components(py, self.inst(), source.inst())
+        {
             let cmpt = &values.2;
             let source_cmpt = &source_values.2;
             cmpt.borrow_mut(py)

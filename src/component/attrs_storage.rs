@@ -6,6 +6,7 @@ use pyo3::{
 
 use super::attrs::AttrsInstance;
 
+/// The base class of `Component` in Python
 #[pyclass(module = "janim_backend.component", subclass)]
 pub struct AttrsStorage {
     pub(crate) attrs_inst: Option<AttrsInstance>,
@@ -13,8 +14,13 @@ pub struct AttrsStorage {
 
 impl AttrsStorage {
     #[inline]
-    fn inst(&self) -> &AttrsInstance {
+    pub(crate) fn inst(&self) -> &AttrsInstance {
         self.attrs_inst.as_ref().unwrap()
+    }
+
+    #[inline]
+    pub(crate) fn inst_mut(&mut self) -> &mut AttrsInstance {
+        self.attrs_inst.as_mut().unwrap()
     }
 }
 
@@ -74,14 +80,9 @@ impl AttrsStorage {
         AttrsStorage::__copy__(slf, py)
     }
 
-    /// Behaves like:
-    ///
-    /// ```python
-    /// def _become(self, other) -> None:
-    ///     self.attrs_inst = other.attrs_inst.copy()
-    /// ```
+    /// Updates fields from `other`, preserving owned objects already held by `self`.
     pub fn _become(&mut self, py: Python<'_>, other: Bound<'_, Self>) -> PyResult<()> {
-        self.attrs_inst = Some(other.borrow().inst().copy(py)?);
+        self.inst_mut().become_from(py, other.borrow().inst())?;
         Ok(())
     }
 

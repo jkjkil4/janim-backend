@@ -5,3 +5,5 @@
 
 pub const ITEM_RELATION__PARENTS_CHANGED: &str = "_parents_changed";
 pub const ITEM_RELATION__CHILDREN_CHANGED: &str = "_children_changed";
+
+pub const COMPONENT__LAST_ATTRS_CLS: &str = "_last_attrs_cls";

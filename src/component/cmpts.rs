@@ -51,7 +51,11 @@ fn next_id() -> usize {
 #[pyclass(module = "janim_backend.component", subclass)]
 pub struct CmptInfo {
     cmpt_field_id: usize,
+
+    #[pyo3(get)]
     cls: Py<PyAny>,
+    pub(crate) last_attrs_cls: Py<PyAny>,
+
     args: Py<PyTuple>,
     kwargs: Option<Py<PyDict>>,
 }
@@ -64,13 +68,16 @@ impl CmptInfo {
         cls: Bound<'_, PyAny>,
         args: &Bound<'_, PyTuple>,
         kwargs: Option<&Bound<'_, PyDict>>,
-    ) -> Self {
-        Self {
+    ) -> PyResult<Self> {
+        let cls = cls.getattr("__origin__").unwrap_or(cls);
+        let last_attrs_cls = cls.getattr(crate::attr_names::COMPONENT__LAST_ATTRS_CLS)?;
+        Ok(Self {
             cmpt_field_id: next_id(),
-            cls: cls.getattr("__origin__").unwrap_or(cls).unbind(),
+            cls: cls.unbind(),
+            last_attrs_cls: last_attrs_cls.unbind(),
             args: args.clone().unbind(),
             kwargs: kwargs.map(|x| x.clone().unbind()),
-        }
+        })
     }
 
     fn create(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {

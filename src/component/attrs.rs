@@ -116,12 +116,7 @@ impl AttrFieldDescriptor {
     ) -> PyResult<Bound<'py, PyAny>> {
         let field_id = slf.borrow().field_id;
         let result = match obj {
-            Some(obj) => obj
-                .borrow()
-                .attrs_inst
-                .as_ref()
-                .unwrap()
-                .get(py, field_id)?,
+            Some(obj) => obj.borrow().inst().get(py, field_id)?,
             None => slf.into_any(),
         };
         Ok(result)
@@ -139,11 +134,7 @@ impl AttrFieldDescriptor {
         obj: Bound<'_, AttrsStorage>,
         value: Bound<'_, PyAny>,
     ) -> PyResult<()> {
-        obj.borrow_mut()
-            .attrs_inst
-            .as_mut()
-            .unwrap()
-            .set(py, self.field_id, value)?;
+        obj.borrow_mut().inst_mut().set(py, self.field_id, value)?;
 
         if let Some(f) = &self.modified_callback {
             f.call1(py, (obj.into_any(),))?;
@@ -210,6 +201,18 @@ impl AttrsInstance {
             datas: copied_datas,
             modified: true,
         })
+    }
+
+    pub fn become_from(&mut self, py: Python<'_>, other: &Self) -> PyResult<()> {
+        for (id, other_data) in &other.datas {
+            let data = self.data_mut(*id)?;
+            if matches!(data, FieldData::OwnedObject(_)) {
+                continue;
+            }
+            *data = other_data.clone_data(py)?;
+        }
+        self.modified = true;
+        Ok(())
     }
 
     pub fn take_modified(&mut self) -> bool {
