@@ -6,7 +6,7 @@ use pyo3::prelude::*;
 #[pymodule]
 pub mod component {
     #[pymodule_export]
-    use super::attrs::{CmptField, CmptFieldDescriptor};
+    use super::attrs::{AttrField, AttrFieldDescriptor};
     #[pymodule_export]
     use super::attrs_storage::AttrsStorage;
 }

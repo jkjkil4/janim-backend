@@ -4,11 +4,11 @@ use pyo3::{
     types::{PyDict, PyList, PyTuple},
 };
 
-use super::attrs::CmptAttrsInstance;
+use super::attrs::AttrsInstance;
 
 #[pyclass(module = "janim_backend.component", subclass)]
 pub struct AttrsStorage {
-    pub(crate) attrs_inst: Option<CmptAttrsInstance>,
+    pub(crate) attrs_inst: Option<AttrsInstance>,
 }
 
 #[pymethods]
@@ -20,7 +20,7 @@ impl AttrsStorage {
     }
 
     fn _init_attrs(&mut self, py: Python<'_>, fields: Bound<'_, PyList>) -> PyResult<()> {
-        self.attrs_inst = Some(CmptAttrsInstance::new(py, fields)?);
+        self.attrs_inst = Some(AttrsInstance::new(py, fields)?);
         Ok(())
     }
 

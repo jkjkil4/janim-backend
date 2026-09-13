@@ -13,7 +13,7 @@ use pyo3::{
 use super::attrs_storage::AttrsStorage;
 
 // -----------------------------------------------------
-// Python Interface: CmptField & CmptFieldDescriptor
+// Python Interface: AttrField & AttrFieldDescriptor
 // -----------------------------------------------------
 
 static NEXT_FIELD_ID: AtomicUsize = AtomicUsize::new(0);
@@ -24,12 +24,12 @@ fn next_id() -> usize {
 }
 
 #[pyclass(module = "janim_backend.component")]
-pub struct CmptField {
+pub struct AttrField {
     id: usize,
     default: FieldData,
 }
 
-impl CmptField {
+impl AttrField {
     #[inline]
     fn new(default: FieldData) -> Self {
         Self {
@@ -41,7 +41,7 @@ impl CmptField {
 
 #[allow(non_snake_case)]
 #[pymethods]
-impl CmptField {
+impl AttrField {
     #[staticmethod]
     fn Int(default: i32) -> Self {
         Self::new(FieldData::Int(default))
@@ -97,15 +97,15 @@ impl CmptField {
 }
 
 #[pyclass]
-pub struct CmptFieldDescriptor {
+pub struct AttrFieldDescriptor {
     field_id: usize,
     modified_callback: Option<Py<PyAny>>,
 }
 
 #[pymethods]
-impl CmptFieldDescriptor {
+impl AttrFieldDescriptor {
     #[new]
-    fn new(field: Bound<'_, CmptField>) -> Self {
+    fn new(field: Bound<'_, AttrField>) -> Self {
         Self {
             field_id: field.borrow().id,
             modified_callback: None,
@@ -171,19 +171,19 @@ impl CmptFieldDescriptor {
 }
 
 // -----------------------------------------------------
-// Internal Implementation: CmptAttrsInstance & FieldData
+// Internal Implementation: AttrsInstance & FieldData
 // -----------------------------------------------------
-pub(crate) struct CmptAttrsInstance {
+pub(crate) struct AttrsInstance {
     datas: HashMap<usize, FieldData>,
     modified: bool,
 }
 
-impl CmptAttrsInstance {
+impl AttrsInstance {
     pub fn new(py: Python<'_>, fields: Bound<'_, PyList>) -> PyResult<Self> {
         let datas = fields
             .iter()
             .map(|x| {
-                let field: PyRef<'_, CmptField> = x.extract()?;
+                let field: PyRef<'_, AttrField> = x.extract()?;
                 Ok((field.id, field.default.clone_data(py)?))
             })
             .collect::<PyResult<_>>()?;
