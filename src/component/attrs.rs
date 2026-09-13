@@ -57,23 +57,6 @@ impl AttrField {
         Self::new(FieldData::Bool(default))
     }
 
-    // #[staticmethod]
-    // fn Custom(
-    //     py: Python<'_>,
-    //     default: Py<PyAny>,
-    //     setter: CustomSetter,
-    //     getter: CustomGetter,
-    //     copyer: CustomCopyer,
-    // ) -> PyResult<Self> {
-    //     let default = match setter.as_ref() {
-    //         Some(f) => f.call1(py, (default,))?,
-    //         None => default,
-    //     };
-    //     Ok(Self::new(FieldData::Custom(
-    //         default, setter, getter, copyer,
-    //     )))
-    // }
-
     #[staticmethod]
     fn NDArray(py: Python<'_>, default: Py<PyAny>, setter: NDArraySetter) -> PyResult<Self> {
         let default = setter.call1(py, (default,))?;
@@ -217,7 +200,7 @@ impl AttrsInstance {
         self.data(field_id)?.get_pyany(py)
     }
 
-    pub fn copy<'py>(&self, py: Python<'py>) -> PyResult<Self> {
+    pub fn copy(&self, py: Python<'_>) -> PyResult<Self> {
         let copied_datas = self
             .datas
             .iter()
@@ -255,12 +238,6 @@ impl FieldData {
             Self::Float(current) => *current = value.extract::<f64>()?,
             Self::Bool(current) => *current = value.extract::<bool>()?,
 
-            // Self::Custom(current, setter, _, _) => {
-            //     *current = match setter {
-            //         Some(f) => f.call1(py, (value,))?,
-            //         None => value.unbind(),
-            //     }
-            // }
             Self::NDArray(current, setter) => {
                 *current = setter.call1(py, (value,))?;
             }
@@ -279,10 +256,6 @@ impl FieldData {
             Self::Float(value) => PyFloat::new(py, *value).into_any(),
             Self::Bool(value) => PyBool::new(py, *value).to_owned().into_any(),
 
-            // Self::Custom(value, _, getter, _) => match getter {
-            //     Some(f) => f.call1(py, (value,))?.into_bound(py),
-            //     None => value.bind(py).clone(),
-            // },
             Self::NDArray(current, _setter) => current.clone_ref(py).into_bound(py),
             Self::OwnedObject(current) => current.clone_ref(py).into_bound(py),
             Self::DirectObject(current, _copyer) => current.clone_ref(py).into_bound(py),
@@ -296,18 +269,6 @@ impl FieldData {
             Self::Float(current) => Self::Float(*current),
             Self::Bool(current) => Self::Bool(*current),
 
-            // Self::Custom(current, setter, getter, copyer) => {
-            //     let copied = match copyer {
-            //         Some(f) if !current.is_none(py) => f.call1(py, (current,))?,
-            //         _ => current.clone_ref(py),
-            //     };
-            //     Self::Custom(
-            //         copied,
-            //         setter.as_ref().map(|f| f.clone_ref(py)),
-            //         getter.as_ref().map(|f| f.clone_ref(py)),
-            //         copyer.as_ref().map(|f| f.clone_ref(py)),
-            //     )
-            // }
             Self::NDArray(current, setter) => {
                 Self::NDArray(current.clone_ref(py), setter.clone_ref(py))
             }

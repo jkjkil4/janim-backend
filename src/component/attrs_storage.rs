@@ -11,6 +11,13 @@ pub struct AttrsStorage {
     pub(crate) attrs_inst: Option<AttrsInstance>,
 }
 
+impl AttrsStorage {
+    #[inline]
+    fn inst(&self) -> &AttrsInstance {
+        self.attrs_inst.as_ref().unwrap()
+    }
+}
+
 #[pymethods]
 impl AttrsStorage {
     #[new]
@@ -33,7 +40,7 @@ impl AttrsStorage {
     ///     cmpt_copy.attrs_inst = self.attrs_inst.copy()
     ///     return cmpt_copy
     /// ```
-    fn copy<'py>(slf: Bound<'py, Self>, py: Python<'py>) -> PyResult<Bound<'py, Self>> {
+    fn __copy__<'py>(slf: Bound<'py, Self>, py: Python<'py>) -> PyResult<Bound<'py, Self>> {
         // SAFETY:
         //
         // - `ptr` comes from `slf.get_type_ptr()`, so it points to a valid
@@ -58,10 +65,13 @@ impl AttrsStorage {
         };
 
         let cmpt_copy: Bound<'_, Self> = obj.extract()?;
-        cmpt_copy.borrow_mut().attrs_inst =
-            Some(slf.borrow().attrs_inst.as_ref().unwrap().copy(py)?);
+        cmpt_copy.borrow_mut().attrs_inst = Some(slf.borrow().inst().copy(py)?);
 
         Ok(cmpt_copy)
+    }
+
+    pub fn copy<'py>(slf: Bound<'py, Self>, py: Python<'py>) -> PyResult<Bound<'py, Self>> {
+        AttrsStorage::__copy__(slf, py)
     }
 
     /// Behaves like:
@@ -70,18 +80,18 @@ impl AttrsStorage {
     /// def _become(self, other) -> None:
     ///     self.attrs_inst = other.attrs_inst.copy()
     /// ```
-    fn _become(&mut self, py: Python<'_>, other: Bound<'_, Self>) -> PyResult<()> {
-        self.attrs_inst = Some(other.borrow().attrs_inst.as_ref().unwrap().copy(py)?);
+    pub fn _become(&mut self, py: Python<'_>, other: Bound<'_, Self>) -> PyResult<()> {
+        self.attrs_inst = Some(other.borrow().inst().copy(py)?);
         Ok(())
     }
 
     /// Behaves like:
     ///
     /// ```python
-    /// def take_modified(self) -> bool:
+    /// def _take_modified(self) -> bool:
     ///     return self.attrs_inst.take_modified()
     /// ```
-    fn take_modified(&mut self) -> bool {
+    pub fn _take_modified(&mut self) -> bool {
         self.attrs_inst.as_mut().unwrap().take_modified()
     }
 }
