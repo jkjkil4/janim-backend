@@ -1,5 +1,5 @@
 mod attrs;
-mod core;
+mod attrs_storage;
 
 use pyo3::prelude::*;
 
@@ -8,5 +8,5 @@ pub mod component {
     #[pymodule_export]
     use super::attrs::{CmptField, CmptFieldDescriptor};
     #[pymodule_export]
-    use super::core::CmptCore;
+    use super::attrs_storage::AttrsStorage;
 }

@@ -7,12 +7,12 @@ use pyo3::{
 use super::attrs::CmptAttrsInstance;
 
 #[pyclass(module = "janim_backend.component", subclass)]
-pub struct CmptCore {
+pub struct AttrsStorage {
     pub(crate) attrs_inst: Option<CmptAttrsInstance>,
 }
 
 #[pymethods]
-impl CmptCore {
+impl AttrsStorage {
     #[new]
     #[pyo3(signature = (*_args, **_kwargs))]
     fn new(_args: &Bound<'_, PyTuple>, _kwargs: Option<&Bound<'_, PyDict>>) -> Self {

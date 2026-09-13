@@ -10,7 +10,7 @@ use pyo3::{
     types::{PyBool, PyFloat, PyInt, PyList, PyNone},
 };
 
-use super::core::CmptCore;
+use super::attrs_storage::AttrsStorage;
 
 // -----------------------------------------------------
 // Python Interface: CmptField & CmptFieldDescriptor
@@ -128,7 +128,7 @@ impl CmptFieldDescriptor {
     fn __get__<'py>(
         slf: Bound<'py, Self>,
         py: Python<'py>,
-        obj: Option<Bound<'py, CmptCore>>,
+        obj: Option<Bound<'py, AttrsStorage>>,
         _owner: Bound<'_, PyAny>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let field_id = slf.borrow().field_id;
@@ -153,7 +153,7 @@ impl CmptFieldDescriptor {
     fn __set__(
         &self,
         py: Python<'_>,
-        obj: Bound<'_, CmptCore>,
+        obj: Bound<'_, AttrsStorage>,
         value: Bound<'_, PyAny>,
     ) -> PyResult<()> {
         obj.borrow_mut()
