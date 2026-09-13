@@ -42,6 +42,13 @@ impl CmptCore {
     ///     return cmpt_copy
     /// ```
     fn copy<'py>(slf: Bound<'py, Self>, py: Python<'py>) -> PyResult<Bound<'py, Self>> {
+        // SAFETY:
+        //
+        // - `ptr` comes from `slf.get_type_ptr()`, so it points to a valid
+        //   `PyTypeObject` and lifetime matches.
+        //
+        // - `tp_new` is the `tp_new` slot of `ptr` and `#[new]` will be automatically called by it,
+        //   so the returned pointer is a new owned reference suitable for `Bound::from_owned_ptr`
         let obj = unsafe {
             let ptr = slf.get_type_ptr();
 
