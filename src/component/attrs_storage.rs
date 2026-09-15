@@ -1,4 +1,5 @@
 use pyo3::{
+    PyTraverseError, PyVisit,
     exceptions::PyTypeError,
     prelude::*,
     types::{PyDict, PyList, PyTuple},
@@ -107,5 +108,23 @@ impl AttrsStorage {
     /// ```
     pub fn _take_modified(&mut self) -> bool {
         self.attrs_inst.as_mut().unwrap().take_modified()
+    }
+
+    // GC compatibility
+    fn __traverse__(&self, visit: PyVisit<'_>) -> Result<(), PyTraverseError> {
+        visit.call(&self._bind)?;
+        if let Some(attrs_inst) = &self.attrs_inst {
+            for data in attrs_inst.datas.values() {
+                data.traverse(&visit)?;
+            }
+        }
+        Ok(())
+    }
+    fn __clear__(&mut self) -> PyResult<()> {
+        self._bind = None;
+        if let Some(attrs_inst) = &mut self.attrs_inst {
+            attrs_inst.datas.clear();
+        }
+        Ok(())
     }
 }

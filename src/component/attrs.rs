@@ -8,6 +8,7 @@ use pyo3::{
     exceptions::PyRuntimeError,
     prelude::*,
     types::{PyBool, PyFloat, PyInt, PyList, PyNone},
+    {PyTraverseError, PyVisit},
 };
 
 use super::attrs_storage::AttrsStorage;
@@ -148,7 +149,7 @@ impl AttrFieldDescriptor {
 // Internal Implementation: AttrsInstance & FieldData
 // -----------------------------------------------------
 pub(crate) struct AttrsInstance {
-    datas: HashMap<usize, FieldData>,
+    pub(crate) datas: HashMap<usize, FieldData>,
     modified: bool,
 }
 
@@ -225,7 +226,7 @@ impl AttrsInstance {
 type NDArraySetter = Py<PyAny>;
 type DirectObjectCopyer = Option<Py<PyAny>>;
 
-enum FieldData {
+pub(crate) enum FieldData {
     Int(i32),
     Float(f64),
     Bool(bool),
@@ -235,6 +236,22 @@ enum FieldData {
 }
 
 impl FieldData {
+    pub(crate) fn traverse(&self, visit: &PyVisit<'_>) -> Result<(), PyTraverseError> {
+        match self {
+            Self::NDArray(current, setter) => {
+                visit.call(current)?;
+                visit.call(setter)?;
+            }
+            Self::OwnedObject(current) => visit.call(current)?,
+            Self::DirectObject(current, copyer) => {
+                visit.call(current)?;
+                visit.call(copyer)?;
+            }
+            Self::Int(_) | Self::Float(_) | Self::Bool(_) => {}
+        }
+        Ok(())
+    }
+
     fn set_pyany(&mut self, py: Python<'_>, value: Bound<'_, PyAny>) -> PyResult<()> {
         match self {
             Self::Int(current) => *current = value.extract::<i32>()?,
