@@ -112,7 +112,7 @@ impl RelationRegistry {
     }
 
     /// Indexize a `str` to an corresponding `id`
-    fn indexize_key(&self, key: &str) -> usize {
+    pub fn indexize_key(&self, key: &str) -> usize {
         let mut mapping = self.indexize_mapping.borrow_mut();
         match mapping.get(key) {
             Some(value) => *value,

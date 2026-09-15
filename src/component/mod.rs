@@ -1,5 +1,6 @@
 mod attrs;
 mod attrs_storage;
+mod bind;
 mod cmpts;
 mod cmpts_storage;
 
@@ -11,6 +12,8 @@ pub mod component {
     use super::attrs::{AttrField, AttrFieldDescriptor};
     #[pymodule_export]
     use super::attrs_storage::AttrsStorage;
+    #[pymodule_export]
+    use super::bind::BindState;
     #[pymodule_export]
     use super::cmpts::{CmptField, CmptInfo};
     #[pymodule_export]

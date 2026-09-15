@@ -23,6 +23,11 @@ impl FlagHandle {
             recurse_down,
         }
     }
+
+    #[inline]
+    pub fn flag_1(&self) -> usize {
+        self.flag_1
+    }
 }
 
 impl RelationRegistry {

@@ -4,12 +4,17 @@ use pyo3::{
     types::{PyDict, PyList, PyTuple},
 };
 
+use crate::component::bind::BindState;
+
 use super::attrs::AttrsInstance;
 
 /// The base class of `Component` in Python
 #[pyclass(module = "janim_backend.component", subclass)]
 pub struct AttrsStorage {
     pub(crate) attrs_inst: Option<AttrsInstance>,
+
+    #[pyo3(get)]
+    _bind: Option<Py<BindState>>,
 }
 
 impl AttrsStorage {
@@ -29,7 +34,10 @@ impl AttrsStorage {
     #[new]
     #[pyo3(signature = (*_args, **_kwargs))]
     fn new(_args: &Bound<'_, PyTuple>, _kwargs: Option<&Bound<'_, PyDict>>) -> Self {
-        Self { attrs_inst: None }
+        Self {
+            attrs_inst: None,
+            _bind: None,
+        }
     }
 
     fn _init_attrs(&mut self, py: Python<'_>, fields: Bound<'_, PyList>) -> PyResult<()> {
@@ -37,15 +45,11 @@ impl AttrsStorage {
         Ok(())
     }
 
-    /// Behaves like:
-    ///
-    /// ```python
-    /// def copy(self) -> Self:
-    ///     cls = self.__class__
-    ///     cmpt_copy = cls.__new__(cls)
-    ///     cmpt_copy.attrs_inst = self.attrs_inst.copy()
-    ///     return cmpt_copy
-    /// ```
+    #[inline]
+    pub(crate) fn bind(&mut self, bind_state: Py<BindState>) {
+        self._bind = Some(bind_state);
+    }
+
     fn __copy__<'py>(slf: Bound<'py, Self>, py: Python<'py>) -> PyResult<Bound<'py, Self>> {
         // SAFETY:
         //
@@ -76,6 +80,15 @@ impl AttrsStorage {
         Ok(cmpt_copy)
     }
 
+    /// Behaves like:
+    ///
+    /// ```python
+    /// def copy(self) -> Self:
+    ///     cls = self.__class__
+    ///     cmpt_copy = cls.__new__(cls)
+    ///     cmpt_copy.attrs_inst = self.attrs_inst.copy()
+    ///     return cmpt_copy
+    /// ```
     pub fn copy<'py>(slf: Bound<'py, Self>, py: Python<'py>) -> PyResult<Bound<'py, Self>> {
         AttrsStorage::__copy__(slf, py)
     }

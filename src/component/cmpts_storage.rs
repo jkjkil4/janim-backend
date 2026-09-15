@@ -1,11 +1,12 @@
 use pyo3::{
-    PyTraverseError, PyVisit,
+    IntoPyObjectExt, PyTraverseError, PyVisit,
     prelude::*,
     types::{PyDict, PyList, PyTuple},
 };
 
 use crate::component::attrs_storage::AttrsStorage;
 
+use super::bind::BindState;
 use super::cmpts::{CmptValues, CmptsInstance};
 
 /// The base class of `Item` in Python
@@ -111,10 +112,20 @@ impl CmptsStorage {
         Ok(())
     }
 
-    fn _bind_cmpts(&self, py: Python<'_>, callback: Bound<'_, PyAny>) -> PyResult<()> {
-        for (key, field, cmpt) in self.inst().cmpts.values() {
-            let decl_cls = &field.borrow(py).decl_cls;
-            callback.call1((cmpt, decl_cls, key))?;
+    fn _bind_cmpts(slf: Bound<'_, Self>, py: Python<'_>) -> PyResult<()> {
+        for (key, field, cmpt) in slf.borrow().inst().cmpts.values() {
+            let decl_cls = field.borrow(py).decl_cls.clone_ref(py);
+            let bind_state = BindState::new(
+                py,
+                decl_cls,
+                slf.clone().into_py_any(py)?,
+                key.into_py_any(py)?,
+            )?;
+            cmpt.borrow_mut(py)
+                .bind(bind_state.into_pyobject(py)?.unbind());
+            if let Some(cls_binded_method) = &field.borrow(py).info.borrow(py).cls_binded_method {
+                cls_binded_method.call1(py, (cmpt,))?;
+            }
         }
 
         Ok(())
@@ -130,6 +141,7 @@ impl CmptsStorage {
         Ok(flag)
     }
 
+    // GC compatibility
     fn __traverse__(&self, visit: PyVisit<'_>) -> Result<(), PyTraverseError> {
         if let Some(cmpts_inst) = &self.cmpts_inst {
             for (_, field, cmpt) in cmpts_inst.cmpts.values() {
@@ -139,7 +151,6 @@ impl CmptsStorage {
         }
         Ok(())
     }
-
     fn __clear__(&mut self) -> PyResult<()> {
         self.cmpts_inst = None;
         Ok(())

@@ -55,6 +55,7 @@ pub struct CmptInfo {
     #[pyo3(get)]
     cls: Py<PyAny>,
     pub(crate) last_attrs_cls: Py<PyAny>,
+    pub(crate) cls_binded_method: Option<Py<PyAny>>,
 
     args: Py<PyTuple>,
     kwargs: Option<Py<PyDict>>,
@@ -71,10 +72,14 @@ impl CmptInfo {
     ) -> PyResult<Self> {
         let cls = cls.getattr("__origin__").unwrap_or(cls);
         let last_attrs_cls = cls.getattr(crate::attr_names::COMPONENT__LAST_ATTRS_CLS)?;
+        let cls_binded_method = cls
+            .getattr(crate::attr_names::COMPONENT__BINDED_METHOD)?
+            .extract()?;
         Ok(Self {
             cmpt_field_id: next_id(),
             cls: cls.unbind(),
             last_attrs_cls: last_attrs_cls.unbind(),
+            cls_binded_method,
             args: args.clone().unbind(),
             kwargs: kwargs.map(|x| x.clone().unbind()),
         })

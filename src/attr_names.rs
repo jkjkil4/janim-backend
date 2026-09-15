@@ -3,7 +3,10 @@
 
 #![allow(non_upper_case_globals)]
 
+pub const ITEM_RELATION__REL_HANDLE: &str = "_rel_handle";
 pub const ITEM_RELATION__PARENTS_CHANGED: &str = "_parents_changed";
 pub const ITEM_RELATION__CHILDREN_CHANGED: &str = "_children_changed";
 
 pub const COMPONENT__LAST_ATTRS_CLS: &str = "_last_attrs_cls";
+pub const COMPONENT__BINDED_METHOD: &str = "_binded";
+pub const CMPT_LAZY_METHOD___FLAG_HANDLE: &str = "__flag_handle";

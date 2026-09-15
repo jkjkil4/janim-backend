@@ -15,7 +15,7 @@ use super::NodeIndex;
 pub use iter::{RelationBitsetIterator, RelationVecIterator};
 
 #[pyclass(module = "janim_backend.relation", weakref, skip_from_py_object)]
-pub(super) struct RelationHandle {
+pub struct RelationHandle {
     /// Reference to the registry
     registry: Py<RelationRegistry>,
     /// Index in the regsitry
@@ -43,6 +43,11 @@ impl RelationHandle {
             parents: PyList::empty(py).unbind(),
             children: PyList::empty(py).unbind(),
         })
+    }
+
+    #[inline]
+    pub fn registry<'py>(&self, py: Python<'py>) -> &Bound<'py, RelationRegistry> {
+        self.registry.bind(py)
     }
 
     pub(super) fn index(&self) -> NodeIndex {
@@ -184,8 +189,16 @@ impl RelationHandle {
         ))
     }
 
+    /// Reset the computed states of self, without considering the recursion
+    fn reset_computed_for_self(&self, py: Python<'_>) {
+        self.registry.borrow(py).reset_computed_for_node(self.index);
+    }
+}
+
+/// Functions used directly by `BindState`
+impl RelationHandle {
     /// Check for whether the flag of `index` is set
-    fn get_computed_for(
+    pub fn get_computed_for(
         &self,
         py: Python<'_>,
         flag_0: usize,
@@ -197,14 +210,19 @@ impl RelationHandle {
     }
 
     /// Set the computed state to `true`, considering the recursion
-    fn mark_computed_for(&self, py: Python<'_>, flag_0: usize, flag_handle: Bound<'_, FlagHandle>) {
+    pub fn mark_computed_for(
+        &self,
+        py: Python<'_>,
+        flag_0: usize,
+        flag_handle: Bound<'_, FlagHandle>,
+    ) {
         self.registry
             .borrow(py)
             .node_mark_computed_for(self.index, flag_0, flag_handle);
     }
 
     /// Reset the computed state to `false`, without considering the recursion
-    fn reset_computed_for(
+    pub fn reset_computed_for(
         &self,
         py: Python<'_>,
         flag_0: usize,
@@ -216,7 +234,7 @@ impl RelationHandle {
     }
 
     /// Reset the computed states in the list to `false`, without considering the recursion
-    fn reset_computed_for_list(
+    pub fn reset_computed_for_list(
         &self,
         py: Python<'_>,
         flag_0: usize,
@@ -228,10 +246,5 @@ impl RelationHandle {
             registry.node_reset_computed_for(self.index, flag_0, flag_handle)?;
         }
         Ok(())
-    }
-
-    /// Reset the computed states of self, without considering the recursion
-    fn reset_computed_for_self(&self, py: Python<'_>) {
-        self.registry.borrow(py).reset_computed_for_node(self.index);
     }
 }
