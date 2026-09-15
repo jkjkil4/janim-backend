@@ -28,6 +28,11 @@ impl AttrsStorage {
     pub(crate) fn inst_mut(&mut self) -> &mut AttrsInstance {
         self.attrs_inst.as_mut().unwrap()
     }
+
+    #[inline]
+    pub(crate) fn bind(&mut self, bind_state: Py<BindState>) {
+        self._bind = Some(bind_state);
+    }
 }
 
 #[pymethods]
@@ -47,8 +52,14 @@ impl AttrsStorage {
     }
 
     #[inline]
-    pub(crate) fn bind(&mut self, bind_state: Py<BindState>) {
-        self._bind = Some(bind_state);
+    #[pyo3(name = "bind")]
+    fn py_bind(slf: Bound<'_, Self>, bind_state: Py<BindState>) -> PyResult<()> {
+        slf.borrow_mut().bind(bind_state);
+        let binded_method = slf.getattr(crate::attr_names::COMPONENT__BINDED_METHOD)?;
+        if !binded_method.is_none() {
+            binded_method.call0()?;
+        }
+        Ok(())
     }
 
     fn __copy__<'py>(slf: Bound<'py, Self>, py: Python<'py>) -> PyResult<Bound<'py, Self>> {
