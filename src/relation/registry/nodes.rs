@@ -79,6 +79,7 @@ impl Nodes {
                 return;
             }
 
+            last.0 = self.next_id;
             last.1 = Nodes::new_chunk(cut_result);
             return;
         }
