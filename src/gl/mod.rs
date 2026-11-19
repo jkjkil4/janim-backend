@@ -109,7 +109,9 @@ pub mod gl {
     pub use super::functions::{is_loaded, load};
 
     #[pymodule_export]
-    pub use super::functions::{active_texture, bind_texture, gen_textures, tex_buffer};
+    pub use super::functions::{
+        active_texture, bind_texture, delete_textures, gen_textures, tex_buffer,
+    };
 
     #[pymodule_export]
     pub use super::functions::{

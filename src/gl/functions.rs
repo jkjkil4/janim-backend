@@ -97,6 +97,19 @@ pub fn gen_textures(n: usize) -> PyResult<Vec<u32>> {
     Ok(textures)
 }
 
+#[pyfunction(name = "glDeleteTextures")]
+pub fn delete_textures(textures: Vec<u32>) -> PyResult<()> {
+    if textures.is_empty() {
+        return Ok(());
+    }
+    let n = i32::try_from(textures.len()).expect("too many textures");
+
+    unsafe {
+        get_gl()?.DeleteTextures(n, textures.as_ptr());
+    }
+    check_error("glDeleteTextures")
+}
+
 #[pyfunction(name = "glBindTexture")]
 pub fn bind_texture(target: u32, texture: u32) -> PyResult<()> {
     unsafe {
